@@ -1,0 +1,11 @@
+[submodule "src/Engine/Dependencies/freetype"]
+	path = src/Engine/Dependencies/freetype
+	url = https://github.com/freetype/freetype.git
+[submodule "src/Engine/Dependencies/LuaJIT"]
+	path = src/Engine/Dependencies/LuaJIT
+	url = https://github.com/LuaJIT/LuaJIT.git
+	ignore = untracked
+[submodule "src/Engine/Dependencies/imgui"]
+	path = src/Engine/Dependencies/imgui
+	url = https://github.com/ujrapul/imgui.git
+	update = merge

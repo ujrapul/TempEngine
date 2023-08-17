@@ -1,0 +1,33 @@
+// SPDX-FileCopyrightText: 2023 Ujwal Vujjini
+// SPDX-License-Identifier: MIT
+
+// MainMenu.level
+
+TextBox
+{
+  Name: NumberGameTextBox
+  Position: 0 40
+  Scale: 0.04
+  Text: NumberGame
+}
+
+TextButton
+{
+  Name: NumberGameTextButton
+  TextBox
+  {
+    Name: NumberGameTextBox1
+    Position: -678 50
+    Scale: 0.0345
+    Text: NumberGame1
+  }
+
+  Hoverable
+  {
+    Position: -20 0
+    // ClickFn: Click
+    // HoverEnterFn: HoverEnter
+    // HoverLeaveFn: HoverLeave
+    Size: 9 4
+  }
+}
