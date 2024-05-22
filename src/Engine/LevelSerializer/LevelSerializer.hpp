@@ -5,12 +5,12 @@
 
 #include "EngineUtils.hpp"
 #include "EntityType.hpp"
+#include "Logger.hpp"
 #include "Math.hpp"
+#include "MemoryManager.hpp"
 #include "Scene.hpp"
+#include "String.hpp"
 #include "TextBox.hpp"
-#include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace Temp::LevelSerializer
 {
@@ -38,20 +38,20 @@ namespace Temp::LevelSerializer
 
   // clang-format off
   template <uint8_t> struct SerializeType_t;
-  template <> struct SerializeType_t<Type::NAME> { using type = std::string; };
+  template <> struct SerializeType_t<Type::NAME> { using type = String; };
   template <> struct SerializeType_t<Type::SHADER> { using type = int; };
   template <> struct SerializeType_t<Type::POSITION> { using type = Math::Vec2f; };
   template <> struct SerializeType_t<Type::SCALE> { using type = float; };
   template <> struct SerializeType_t<Type::SCALE2D> { using type = Math::Vec2f; };
   template <> struct SerializeType_t<Type::SIZE> { using type = float; };
   template <> struct SerializeType_t<Type::SIZE2D> { using type = Math::Vec2f; };
-  template <> struct SerializeType_t<Type::TEXT> { using type = std::string; };
+  template <> struct SerializeType_t<Type::TEXT> { using type = String; };
   template <> struct SerializeType_t<Type::TEXTBOX> { using type = TextBox::Data; };
   template <> struct SerializeType_t<Type::TEXTBOXCTOR> { using type = TextBox::ConstructData; };
   template <> struct SerializeType_t<Type::HOVERABLE> { using type = Component::Hoverable::Data; };
   template <> struct SerializeType_t<Type::FONT> { using type = int; };
   template <> struct SerializeType_t<Type::CHARACTERLIMIT> { using type = int; };
-  template <> struct SerializeType_t<Type::FILE> { using type = std::string; };
+  template <> struct SerializeType_t<Type::FILE> { using type = String; };
 
   template <uint8_t T>
   using SerializeType = typename SerializeType_t<T>::type;
@@ -72,12 +72,11 @@ namespace Temp::LevelSerializer
   template <> constexpr const char* SerializeString<Type::FILE>() { return "File"; }
   // clang-format on
 
-  // Pass SceneObjectMap
   struct GlobalDeserializeData
   {
     Scene::Data& scene;
-    std::istringstream& f;
-    std::string& line;
+    char*& l;
+    String& line;
     int& lineNumber;
   };
 
@@ -91,31 +90,44 @@ namespace Temp::LevelSerializer
   constexpr uint8_t ENUM_MAX = Type::MAX - 1;
 
   template <uint8_t E>
-  constexpr void DestructEnum(const std::vector<void*>& data)
+  constexpr void DestructEnum(const Array<void*, Type::MAX>& data)
   {
-    delete static_cast<SerializeType<E>*>(data[E]);
+    if (data[E] && E != Type::TEXTBOX && E != Type::TEXTBOXCTOR)
+    {
+      static_cast<SerializeType<E>*>(data[E])->~SerializeType<E>();
+      MemoryManager::data.Free(MemoryManager::Data::TEMP, 0);
+    }
   }
 
   template <uint8_t E>
-  constexpr void CopyEnum(const std::vector<void*>& other, std::vector<void*>& data)
+  constexpr void CopyEnum(const Array<void*, Type::MAX>& other, Array<void*, Type::MAX>& data)
   {
-    if (other[E])
+    if (!other[E])
     {
-      data[E] = new SerializeType<E>(*static_cast<SerializeType<E>*>(other[E]));
+      return;
+    }
+
+    if (E == Type::TEXTBOX || E == Type::TEXTBOXCTOR)
+    {
+      data[E] = MemoryManager::CreateScene<SerializeType<E>>(*static_cast<SerializeType<E>*>(other[E]));
+    }
+    else
+    {
+      data[E] = MemoryManager::CreateTemp<SerializeType<E>>(*static_cast<SerializeType<E>*>(other[E]));
     }
   }
 
   template <uint8_t E>
   struct EnumRange
   {
-    constexpr static void DestructEnums(const std::vector<void*>& data)
+    constexpr static void DestructEnums(const Array<void*, Type::MAX>& data)
     {
       DestructEnum<E>(data);
       if constexpr (E < ENUM_MAX)
         EnumRange<E + 1>::DestructEnums(data);
     }
 
-    constexpr static void CopyEnums(const std::vector<void*>& other, std::vector<void*>& data)
+    constexpr static void CopyEnums(const Array<void*, Type::MAX>& other, Array<void*, Type::MAX>& data)
     {
       CopyEnum<E>(other, data);
       if constexpr (E < ENUM_MAX)
@@ -127,26 +139,27 @@ namespace Temp::LevelSerializer
   // There should never be a reference or a pointer to this data!
   struct DeserializeData
   {
-    std::vector<void*> data;
+    Array<void*, Type::MAX> data;
 
-    DeserializeData() { data.resize(Type::MAX, nullptr); }
+    DeserializeData() {}
 
     DeserializeData(const DeserializeData& other)
     {
-      data.resize(Type::MAX, nullptr);
       EnumRange<ENUM_MIN>::CopyEnums(other.data, data);
     }
 
     constexpr void operator=(const DeserializeData& other)
     {
-      data.resize(Type::MAX, nullptr);
       EnumRange<ENUM_MIN>::CopyEnums(other.data, data);
     }
 
-    ~DeserializeData() { EnumRange<ENUM_MIN>::DestructEnums(data); }
+    ~DeserializeData()
+    {
+      EnumRange<ENUM_MIN>::DestructEnums(data);
+    }
 
     template <uint8_t T>
-    constexpr SerializeType<T> defaultValue()
+    constexpr SerializeType<T> defaultValue() const
     {
       if constexpr (T == Type::CHARACTERLIMIT)
       {
@@ -163,68 +176,61 @@ namespace Temp::LevelSerializer
     }
 
     template <uint8_t T>
-    constexpr SerializeType<T> get()
+    constexpr SerializeType<T> get() const
     {
       return data[T] ? *static_cast<SerializeType<T>*>(data[T]) : defaultValue<T>();
     }
-
-    template <uint8_t T>
-    constexpr SerializeType<T>* copy() const
-    {
-      return new SerializeType<T>(*static_cast<SerializeType<T>*>(data[T]));
-    }
   };
 
-  inline const std::unordered_map<std::string_view, int> DeserializeTable = {
-    {"TextBox", EntityType::TEXTBOX},
-    {"TextButton", EntityType::TEXTBUTTON},
-    {"Sprite", EntityType::SPRITE},
-    {"Max", EntityType::MAX}};
-
-  inline void AddSceneObject(SceneObject::Data& object, int type, GlobalDeserializeData& data)
+  inline void AddSceneObject(SceneObject::Data object, int type, GlobalDeserializeData& data)
   {
-    std::string name = object.name;
+    String name = object.name.c_str();
     object.type = type;
-    data.scene.objects.push_back(object);
-    data.scene.objectsNameIdxTable[name] = (int)data.scene.objects.size() - 1;
+    data.scene.objects.PushBack(std::move(object));
+    data.scene.objectsNameIdxTable[name.c_str()] = (int)data.scene.objects.size - 1;
   }
 
-  inline bool GetLine(std::istringstream& f, std::string& l, int& lnum)
+  inline bool GetLine(String& line, char*& l, int& lnum)
   {
     ++lnum;
-    return std::getline(f, l) ? true : false;
+    char* nextline = strchr(l, '\n');
+    size_t length = nextline ? nextline - l : strlen(l);
+    line = String(l, l + length);
+    Trim(line);
+    l = nextline ? nextline + 1 : nullptr;
+    return l;
   }
 
-  inline bool IgnoreLine(const std::string_view line)
+  inline bool IgnoreLine(const String& line)
   {
     return line.starts_with("//") || line == "";
   }
 
   inline bool LogInvalidDelimiter(GlobalDeserializeData& data)
   {
-    Logger::LogErr("[Deserialize] Invalid delimiter at line " + std::to_string(data.lineNumber) +
-                   ": " + data.line);
+    Logger::LogErr(String("[Deserialize] Invalid delimiter at line ") + String::ToString(data.lineNumber) +
+                   ": " + data.line.c_str());
     return false;
   }
 
   inline bool LogInvalidPosition(GlobalDeserializeData& data)
   {
-    Logger::LogErr("[Deserialize] Invalid position at line " + std::to_string(data.lineNumber) +
-                   ": " + data.line);
+    Logger::LogErr(String("[Deserialize] Invalid position at line ") + String::ToString(data.lineNumber) +
+                   ": " + data.line.c_str());
     return false;
   }
 
   inline bool LogNoStartBrace(GlobalDeserializeData& data)
   {
-    Logger::LogErr("[Deserialize] No start brace '{' at line " + std::to_string(data.lineNumber) +
-                   ": " + data.line);
+    Logger::LogErr(String("[Deserialize] No start brace '{' at line ") + String::ToString(data.lineNumber) +
+                   ": " + data.line.c_str());
     return false;
   }
 
   inline bool LogNoEndBrace(GlobalDeserializeData& data)
   {
-    Logger::LogErr("[Deserialize] No end brace '}' at line " + std::to_string(data.lineNumber) +
-                   ": " + data.line);
+    Logger::LogErr(String("[Deserialize] No end brace '}' at line ") + String::ToString(data.lineNumber) +
+                   ": " + data.line.c_str());
     return false;
   }
 
@@ -240,13 +246,13 @@ namespace Temp::LevelSerializer
       return outTB;
     }
     auto textBoxData = std::get<0>(outTB);
-    textBox = new TextBox::Data();
-    textBoxCtor = new TextBox::ConstructData();
+    textBox = MemoryManager::CreateScene<TextBox::Data>();
+    textBoxCtor = MemoryManager::CreateScene<TextBox::ConstructData>();
     // textBox->name = textBoxData.get<Type::NAME>();
     textBoxCtor->x = textBoxData.get<Type::POSITION>().x;
     textBoxCtor->y = textBoxData.get<Type::POSITION>().y;
     textBoxCtor->scale = textBoxData.get<Type::SCALE>();
-    textBox->text = textBoxData.get<Type::TEXT>();
+    textBox->text = textBoxData.get<Type::TEXT>().c_str();
     textBox->fontType = textBoxData.get<Type::FONT>();
     textBox->maxCharactersPerLine = textBoxData.get<Type::CHARACTERLIMIT>();
     return outTB;
@@ -256,14 +262,13 @@ namespace Temp::LevelSerializer
   inline std::tuple<DeserializeData, bool> Deserialize(GlobalDeserializeData& data)
   {
     DeserializeData out;
-    if (GetLine(data.f, data.line, data.lineNumber) && data.line.find('{') == std::string::npos)
+    if (GetLine(data.line, data.l, data.lineNumber) && data.line.find("{") == SIZE_MAX)
     {
       return {out, LogNoStartBrace(data)};
     }
-    while (GetLine(data.f, data.line, data.lineNumber))
+    while (GetLine(data.line, data.l, data.lineNumber))
     {
-      data.line = Trim(data.line);
-      if (data.line.find('}') != std::string::npos)
+      if (data.line.find("}") != SIZE_MAX)
       {
         return {out, true};
       }
@@ -272,9 +277,9 @@ namespace Temp::LevelSerializer
         continue;
       }
       auto tokens = SplitString(data.line, ": ", 1);
-      if (tokens.size() != 2)
+      if (tokens.size != 2)
       {
-        if (tokens[0].find(SerializeString<Type::TEXTBOX>()) != std::string::npos)
+        if (tokens[0].find(SerializeString<Type::TEXTBOX>()) != SIZE_MAX)
         {
           TextBox::Data* textBox;
           TextBox::ConstructData* textBoxCtor;
@@ -285,7 +290,7 @@ namespace Temp::LevelSerializer
           out.data[Type::TEXTBOX] = static_cast<void*>(textBox);
           out.data[Type::TEXTBOXCTOR] = static_cast<void*>(textBoxCtor);
         }
-        else if (tokens[0].find(SerializeString<Type::HOVERABLE>()) != std::string::npos)
+        else if (tokens[0].find(SerializeString<Type::HOVERABLE>()) != SIZE_MAX)
         {
           auto outH = Deserialize(data);
           if (!std::get<1>(outH))
@@ -293,7 +298,7 @@ namespace Temp::LevelSerializer
             return {out, false};
           }
           auto hoverableData = std::get<0>(outH);
-          auto hoverable = new Component::Hoverable::Data();
+          auto hoverable = MemoryManager::CreateTemp<Component::Hoverable::Data>();
           hoverable->x = hoverableData.get<Type::POSITION>().x;
           hoverable->y = hoverableData.get<Type::POSITION>().y;
           hoverable->width = hoverableData.get<Type::SIZE2D>().x;
@@ -311,69 +316,71 @@ namespace Temp::LevelSerializer
           return {out, LogInvalidDelimiter(data)};
         }
       }
-      else if (tokens[0].find(SerializeString<Type::NAME>()) != std::string::npos)
+      else if (tokens[0].find(SerializeString<Type::NAME>()) != SIZE_MAX)
       {
-        out.data[Type::NAME] = static_cast<void*>(new std::string(tokens[1]));
+        out.data[Type::NAME] = MemoryManager::CreateTemp<String>(std::move(tokens[1]));
       }
-      else if (tokens[0].find(SerializeString<Type::SHADER>()) != std::string::npos)
+      else if (tokens[0].find(SerializeString<Type::SHADER>()) != SIZE_MAX)
       {
-        out.data[Type::SHADER] = static_cast<void*>(new int(std::atoi(tokens[1].data())));
+        out.data[Type::SHADER] = MemoryManager::CreateTemp<int>(std::atoi(tokens[1].c_str()));
       }
-      else if (tokens[0].find(SerializeString<Type::POSITION>()) != std::string::npos)
+      else if (tokens[0].find(SerializeString<Type::POSITION>()) != SIZE_MAX)
       {
         auto position = SplitString(tokens[1], " ");
-        if (position.size() != 2)
+        if (position.size != 2)
         {
           return {out, LogInvalidPosition(data)};
         }
-        out.data[Type::POSITION] = static_cast<void*>(
-          new Math::Vec2f(std::strtof(position[0].data(), nullptr),
-                          std::strtof(position[1].data(), nullptr)));
+        out.data[Type::POSITION] = MemoryManager::CreateTemp<Math::Vec2f>(
+          std::strtof(position[0].c_str(), nullptr),
+          std::strtof(position[1].c_str(), nullptr));
       }
-      else if (tokens[0].find(SerializeString<Type::SCALE>()) != std::string::npos)
+      else if (tokens[0].find(SerializeString<Type::SCALE>()) != SIZE_MAX)
       {
-        auto scale = SplitString(Trim(tokens[1]), " ");
-        if (scale.size() == 2)
+        auto trimmed = Trim(tokens[1]);
+        auto scale = SplitString(trimmed, " ");
+        if (scale.size == 2)
         {
-          out.data[Type::SCALE2D] = static_cast<void*>(
-            new Math::Vec2f(std::strtof(scale[0].data(), nullptr),
-                            std::strtof(scale[1].data(), nullptr)));
+          out.data[Type::SCALE2D] = MemoryManager::CreateTemp<Math::Vec2f>(
+            std::strtof(scale[0].c_str(), nullptr),
+            std::strtof(scale[1].c_str(), nullptr));
         }
         else
         {
-          out.data[Type::SCALE] = static_cast<void*>(
-            new float(std::strtof(tokens[1].data(), nullptr)));
+          out.data[Type::SCALE] = MemoryManager::CreateTemp<float>(
+            std::strtof(tokens[1].c_str(), nullptr));
         }
       }
-      else if (tokens[0].find(SerializeString<Type::SIZE>()) != std::string::npos)
+      else if (tokens[0].find(SerializeString<Type::SIZE>()) != SIZE_MAX)
       {
         auto size = SplitString(Trim(tokens[1]), " ");
-        if (size.size() == 2)
+        if (size.size == 2)
         {
-          out.data[Type::SIZE2D] = static_cast<void*>(
-            new Math::Vec2f(std::strtof(size[0].data(), nullptr),
-                            std::strtof(size[1].data(), nullptr)));
+          out.data[Type::SIZE2D] = MemoryManager::CreateTemp<Math::Vec2f>(
+            std::strtof(size[0].c_str(), nullptr),
+            std::strtof(size[1].c_str(), nullptr));
         }
         else
         {
-          out.data[Type::SIZE] = static_cast<void*>(new float((float)std::atof(tokens[1].data())));
+          out.data[Type::SIZE] = MemoryManager::CreateTemp<float>(
+            (float)std::atof(tokens[1].c_str()));
         }
       }
-      else if (tokens[0].find(SerializeString<Type::TEXT>()) != std::string::npos)
+      else if (tokens[0].find(SerializeString<Type::TEXT>()) != SIZE_MAX)
       {
-        out.data[Type::TEXT] = static_cast<void*>(new std::string(tokens[1]));
+        out.data[Type::TEXT] = MemoryManager::CreateTemp<String>(std::move(tokens[1]));
       }
-      else if (tokens[0].find(SerializeString<Type::FONT>()) != std::string::npos)
+      else if (tokens[0].find(SerializeString<Type::FONT>()) != SIZE_MAX)
       {
-        out.data[Type::FONT] = static_cast<void*>(new int(std::atoi(tokens[1].data())));
+        out.data[Type::FONT] = MemoryManager::CreateTemp<int>(std::atoi(tokens[1].c_str()));
       }
-      else if (tokens[0].find(SerializeString<Type::CHARACTERLIMIT>()) != std::string::npos)
+      else if (tokens[0].find(SerializeString<Type::CHARACTERLIMIT>()) != SIZE_MAX)
       {
-        out.data[Type::CHARACTERLIMIT] = static_cast<void*>(new int(std::atoi(tokens[1].data())));
+        out.data[Type::CHARACTERLIMIT] = MemoryManager::CreateTemp<int>(std::atoi(tokens[1].c_str()));
       }
-      else if (tokens[0].find(SerializeString<Type::FILE>()) != std::string::npos)
+      else if (tokens[0].find(SerializeString<Type::FILE>()) != SIZE_MAX)
       {
-        out.data[Type::FILE] = static_cast<void*>(new std::string(tokens[1]));
+        out.data[Type::FILE] = MemoryManager::CreateTemp<String>(std::move(tokens[1]));
       }
     }
     return {out, LogNoEndBrace(data)};
@@ -381,7 +388,7 @@ namespace Temp::LevelSerializer
 
   // Make sure memory that's used for objects is not leaked!
   // Use ExtensionParser for games that have custom types
-  bool Deserialize(Scene::Data& scene, const std::string& file);
-  void Serialize(Scene::Data& scene, const std::string& file);
-  bool LevelExists(const std::string& file);
+  bool Deserialize(Scene::Data& scene, const char* file);
+  void Serialize(Scene::Data& scene, const char* file);
+  bool LevelExists(const char* file);
 }

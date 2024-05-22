@@ -10,6 +10,8 @@
 #include "gl.h"
 #include "wgl.h"
 
+#include "STDPCH.hpp"
+
 #ifdef EDITOR
 #include "CommonRender.hpp"
 #include "imgui.h"
@@ -17,7 +19,6 @@
 #include "imgui_impl_win32.h"
 #endif
 
-#include <cassert>
 #include <stdio.h>
 #include <windowsx.h>
 

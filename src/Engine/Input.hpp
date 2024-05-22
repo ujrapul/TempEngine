@@ -3,11 +3,7 @@
 
 #pragma once
 
-#include <string>
-#include <array>
-#include <vector>
-#include <mutex>
-#include <queue>
+#include "STDPCH.hpp"
 
 namespace Temp::Input
 {
@@ -340,8 +336,8 @@ namespace Temp::Input
 
   struct Data
   {
-    std::array<std::vector<void (*)(KeyboardCode)>, 256> pressKeyEvents{};
-    std::array<std::vector<void (*)(KeyboardCode)>, 256> releaseKeyEvents{};
+    GlobalDynamicArray<void (*)(KeyboardCode)> pressKeyEvents[256]{};
+    GlobalDynamicArray<void (*)(KeyboardCode)> releaseKeyEvents[256]{};
   };
 
   void Process(Data &data);

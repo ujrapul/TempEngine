@@ -5,7 +5,6 @@
 
 #include "Entity.hpp"
 #include "Logger.hpp"
-#include <string>
 
 struct Null
 {

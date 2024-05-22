@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 Ujwal Vujjini
+// SPDX-License-Identifier: MIT
+
 #include "Sprite.hpp"
 #include "Drawable.hpp"
 #include "EngineUtils.hpp"
@@ -6,8 +9,6 @@
 #include "RenderUtils.hpp"
 #include "Scene.hpp"
 #include "TGA.hpp"
-#include <climits>
-#include <iterator>
 
 namespace Temp::Sprite
 {
@@ -76,11 +77,10 @@ namespace Temp::Sprite
 
     auto& drawable = Scene::Get<Temp::Component::Type::DRAWABLE>(scene, sprite.entity);
     TGA::Header header;
-    if ((drawable.texture = OpenGLWrapper::LoadTextureTGA(
-           (AssetsDirectory() / "Images" / sprite.fileName.c_str()).c_str(),
-           GL_BGRA,
-           header,
-           GL_NEAREST)) == UINT_MAX)
+    if ((drawable.texture = OpenGLWrapper::LoadTextureTGA(sprite.fileName.c_str(),
+                                                          GL_BGRA,
+                                                          header,
+                                                          GL_NEAREST)) == UINT_MAX)
     {
       Logger::LogErr("[Sprite] Could not load TGA image!");
     }
@@ -90,9 +90,9 @@ namespace Temp::Sprite
     hoverable.height = 1;
     Component::Hoverable::ConstructDrawable(hoverable);
 #endif
-    Component::Drawable::UpdateData(drawable,
-                                    {std::begin(vertices), std::end(vertices)},
-                                    {std::begin(indices), std::end(indices)});
+    drawable.vertices = {vertices, 16};
+    drawable.indices = {indices, 6};
+    Component::Drawable::UpdateData(drawable);
 
     Component::Drawable::Construct(drawable, //
                                    shaderType,

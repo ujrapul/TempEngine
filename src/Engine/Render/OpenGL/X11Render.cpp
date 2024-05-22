@@ -3,6 +3,8 @@
 
 #include "X11Render.hpp"
 
+#include "Logger.hpp"
+#include "Scene.hpp"
 #include "Camera.hpp"
 #include "Drawable.hpp"
 #include "Engine.hpp"
@@ -14,8 +16,9 @@
 #include "gl.h"
 #include "glx.h"
 #include <X11/X.h>
+#include <string>
 
-#ifdef EDITOR
+#if defined(EDITOR) || defined(DEBUG)
 #include "CommonRender.hpp"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
@@ -49,10 +52,25 @@ namespace Temp::Render
     XVisualInfo* visualInfo{};
     Colormap colormap{};
 
+    void GLAPIENTRY GLMessageCallback(__attribute__((unused)) GLenum source,
+                           __attribute__((unused)) GLenum type,
+                           __attribute__((unused)) GLuint id,
+                           __attribute__((unused)) GLenum severity,
+                           __attribute__((unused)) GLsizei length,
+                           const GLchar* message,
+                           __attribute__((unused)) const void* userParam)
+    {
+      if (/*type != 33360 &&*/ type != 33361)
+      {
+        auto final = String("[OpenGL Error](") + String::ToString(type) + ") " + message ;
+        Logger::LogErr(final);
+      }
+    }
+
     void RenderThread(Scene::Data& scene)
     {
       Event::RenderRun(scene, EventData);
-#ifdef EDITOR
+#if defined(EDITOR) || defined(DEBUG)
       RenderImGui(scene, EventData);
 #endif
 
@@ -166,8 +184,13 @@ namespace Temp::Render
         std::cerr << "OpenGL 3.3 is not supported" << std::endl;
         return;
       }
+      GLenum error;
+      while ((error = glGetError()) != GL_NO_ERROR)
+      {
+        Logger::LogErr(String("OpenGL Error: ") + String::ToString(error));
+      }
 
-#ifdef EDITOR
+#if defined(EDITOR) || defined(DEBUG)
       // Setup Dear ImGui context
       IMGUI_CHECKVERSION();
       ImGui::CreateContext();
@@ -184,6 +207,15 @@ namespace Temp::Render
       ImGui_ImplOpenGL3_Init();
       ImGui_ImplX11_Init(display, window);
 #endif
+
+      glDebugMessageControl(GL_DEBUG_SOURCE_API,
+                            GL_DEBUG_TYPE_ERROR,
+                            GL_DONT_CARE,
+                            0,
+                            NULL,
+                            GL_TRUE);
+      glEnable(GL_DEBUG_OUTPUT);
+      glDebugMessageCallback(GLMessageCallback, 0);
     }
   }
 
@@ -206,7 +238,7 @@ namespace Temp::Render
     {
       XEvent xev;
       XNextEvent(display, &xev);
-#ifdef EDITOR
+#if defined(EDITOR) || defined(DEBUG)
       ImGui_ImplX11_EventHandler(xev);
       // if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
       // {
@@ -337,7 +369,7 @@ namespace Temp::Render
     gladLoaderUnloadGL();
     gladLoaderUnloadGLX();
 
-#ifdef EDITOR
+#if defined(EDITOR) || defined(DEBUG)
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplX11_Shutdown();
     ImGui::DestroyContext();

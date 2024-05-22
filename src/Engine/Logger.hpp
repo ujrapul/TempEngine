@@ -3,7 +3,13 @@
 
 #pragma once
 
-#include <iostream>
+// #include "STDPCH.hpp"
+#include "MemoryManager.hpp"
+
+namespace Temp
+{
+  template<MemoryManager::Data::Type> struct BaseString;
+}
 
 namespace Temp::Logger
 {
@@ -19,55 +25,32 @@ namespace Temp::Logger
   {
     virtual void Log(const char *text) const = 0;
     virtual void Log(const unsigned char *text) const = 0;
-    virtual void Log(const std::string &text) const = 0;
+    virtual void Log(const BaseString<MemoryManager::Data::TEMP> &) const = 0;
 
     virtual void LogErr(const char *text) const = 0;
     virtual void LogErr(const unsigned char *text) const = 0;
-    virtual void LogErr(const std::string &text) const = 0;
+    virtual void LogErr(const BaseString<MemoryManager::Data::TEMP> &) const = 0;
   };
 
   struct Noop : LogInterface
   {
     inline void Log(const char *) const override {}
     inline void Log(const unsigned char *) const override {}
-    inline void Log(const std::string &) const override {}
+    inline void Log(const BaseString<MemoryManager::Data::TEMP> &) const override {}
 
     inline void LogErr(const char *) const override {}
     inline void LogErr(const unsigned char *) const override {}
-    inline void LogErr(const std::string &) const override {}
+    inline void LogErr(const BaseString<MemoryManager::Data::TEMP> &) const override {}
   };
 
   struct Cout : LogInterface
   {
-    inline void Log(const char *text) const override
-    {
-      std::cout << text << "\n";
-    }
-
-    virtual void Log(const unsigned char *text) const override
-    {
-      std::cout << text << "\n";
-    }
-
-    inline void Log(const std::string &text) const override
-    {
-      Log(text.c_str());
-    }
-
-    inline void LogErr(const char *text) const override
-    {
-      std::cout << "[  \033[91m\033[1m" << text << "\033[0m  ]\n";
-    }
-
-    virtual void LogErr(const unsigned char *text) const override
-    {
-      std::cout << "[  \033[91m\033[1m" << text << "\033[0m  ]\n";
-    }
-
-    inline void LogErr(const std::string &text) const override
-    {
-      LogErr(text.c_str());
-    }
+    void Log(const char *text) const override;
+    void Log(const unsigned char *text) const override;
+    void Log(const BaseString<MemoryManager::Data::TEMP> &text) const override;
+    void LogErr(const char *text) const override;
+    void LogErr(const unsigned char *text) const override;
+    void LogErr(const BaseString<MemoryManager::Data::TEMP> &text) const override;
   };
 
   inline const LogInterface &GetLogger()
@@ -93,7 +76,7 @@ namespace Temp::Logger
     GetLogger().Log(text);
   }
 
-  inline void Log(const std::string &text)
+  inline void Log(const BaseString<MemoryManager::Data::TEMP> &text)
   {
     GetLogger().Log(text);
   }
@@ -108,7 +91,7 @@ namespace Temp::Logger
     GetLogger().LogErr(text);
   }
 
-  inline void LogErr(const std::string &text)
+  inline void LogErr(const BaseString<MemoryManager::Data::TEMP> &text)
   {
     GetLogger().LogErr(text);
   }

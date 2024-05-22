@@ -4,10 +4,11 @@
 #pragma once
 
 #include "Entity.hpp"
+#include "MemoryManager.hpp"
 #include "Shader.hpp"
 #include "Math.hpp"
-#include <string>
-#include <vector>
+#include "String.hpp"
+#include <cstdint>
 
 namespace Temp::Scene
 {
@@ -29,18 +30,18 @@ namespace Temp::TextBox
     float scale{};
     // Needed for Hoverable in TextButton
     float offsetY{0};
+    // Used for reserving memory
+    size_t maxCharacters{SIZE_MAX};
   };
 
   struct Data
   {
-    std::vector<float> vertices{};
-    std::vector<unsigned int> indices{};
-    std::string text{};
+    SceneString text{};
     Math::Vec2f size{};
+    size_t maxCharacters{SIZE_MAX};
     Entity::id entity{};
     int fontType{};
     int maxCharactersPerLine{INT_MAX};
-    bool renderText{false};
     bool enableOutline{false};
     bool hasParent{false};
     bool singleCharacterWriteMode{false};
@@ -48,7 +49,7 @@ namespace Temp::TextBox
 
   void DrawConstruct(Scene::Data& scene, Data& textBox, int shaderType = Render::ShaderIdx::TEXT);
   void Construct(Scene::Data& scene, Data& textBox, const ConstructData& ctorData, Entity::id entity);
-  void UpdateText(Scene::Data& scene, Data& textBox, const std::string& newText);
+  void UpdateText(Scene::Data& scene, Data& textBox, const char* newText);
   void Update(Scene::Data& scene, Data& textBox);
   void DrawUpdate(Scene::Data& scene, Component::Drawable::Data& drawable, Data& textBox);
   void EnableOutline(Scene::Data& scene, Data& textBox, bool enable);

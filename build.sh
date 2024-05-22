@@ -8,12 +8,6 @@ clear && clear
 unameOut="$(uname -s)"
 if [[ "$*" == *"clean"* ]]; then
   rm -rf build/
-  if [[ "$unameOut" == *"Linux"* ]] || [[ "$unameOut" == *"Darwin"* ]]; then
-  (
-    cd src/Engine/Dependencies/LuaJIT
-    make clean
-  )
-  fi
 fi
 
 build_folder="."
@@ -21,7 +15,7 @@ project_name="NumberGame"
 top_level_dir=$PWD
 asset_command="ln -sf"
 asset_directory="Engine"
-asset_folders=("Fonts" "Shaders" "Images" "LuaScripts" "Levels" "Audio")
+asset_folders=("Fonts" "Shaders" "Images" "Levels" "Audio")
 use_clang_tidy="OFF"
 asset_folder="."
 build_path="$build_folder/$project_name/Assets"
@@ -29,6 +23,11 @@ is_copy_asset=true
 use_sanitize_thread="OFF"
 use_sanitize_address="OFF"
 run_args=""
+dll="OFF"
+
+if [[ "$*" == *"dll"* ]]; then
+  dll="ON"
+fi
 
 if [[ "$*" == *"clang-tidy"* ]]; then
   use_clang_tidy="ON"
@@ -45,7 +44,7 @@ elif [[ "$*" == *"mangohud"* ]]; then
 fi
 
 mk_dir() {
-  rm -rf $build_path
+  #rm -rf $build_path
 
   for folder in ${asset_folders[@]}; do
     mkdir -p $build_path/$folder
@@ -80,31 +79,37 @@ copy_asset() {
 }
 
 build_project_linux() {
-  mkdir $build_folder
-  for dir in $top_level_dir/src/*/; do
-    project_name=$(basename "$dir")
-    build_path="$build_folder/$project_name/Assets"
-    if [ "$project_name" != "Engine" ]; then
-      if [ "$is_copy_asset" = true ]; then
-        copy_asset
-      else
-        create_asset_ln
-      fi
-    fi
-  done
-  (
-    cd $build_folder
-    cmake -DCMAKE_BUILD_TYPE=$build_folder -DUSE_CLANG_TIDY=$use_clang_tidy -DSANITIZE_THREAD=$use_sanitize_thread -DSANITIZE_ADDRESS=$use_sanitize_address -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -G Ninja ../..
-    cp -rf compile_commands.json ../..
-    time ninja
-    
-    time ./UT_Engine/UT_Engine
+  if [ "$dll" == "OFF" ]; then
+    mkdir $build_folder
     for dir in $top_level_dir/src/*/; do
       project_name=$(basename "$dir")
-      if [ "$project_name" != "UT_Engine" ] && [ -e $project_name/"$project_name"UT ]; then
-        ./$project_name/"$project_name"UT
+      build_path="$build_folder/$project_name/Assets"
+      if [ "$project_name" != "Engine" ]; then
+        if [ "$is_copy_asset" = true ]; then
+          copy_asset
+        else
+          create_asset_ln
+        fi
       fi
     done
+  fi
+  (
+    cd $build_folder
+    if [ "$dll" == "OFF" ]; then
+      cmake -DCMAKE_BUILD_TYPE=$build_folder -DUSE_CLANG_TIDY=$use_clang_tidy -DSANITIZE_THREAD=$use_sanitize_thread -DSANITIZE_ADDRESS=$use_sanitize_address -DDLL=$dll -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -G Ninja ../..
+      cp -rf compile_commands.json ../..
+    fi
+    ninja
+
+    if [ "$dll" == "OFF" ]; then
+      time ./UT_Engine/UT_Engine
+      for dir in $top_level_dir/src/*/; do
+        project_name=$(basename "$dir")
+        if [ "$project_name" != "UT_Engine" ] && [ -e $project_name/"$project_name"UT ]; then
+          ./$project_name/"$project_name"UT
+        fi
+      done
+    fi
   )
 }
 
@@ -140,22 +145,17 @@ build_project_win() {
 
 (
   export MSYS=winsymlinks:nativestrict
-  if [[ "$*" == *"clean"* ]] || [[ "$*" == *"initialize"* ]]; then
-    git submodule update --init --remote --merge
-    (
-      cd src/Engine/Dependencies/imgui
-      git checkout master
-    )
+  if [ "$dll" == "OFF" ]; then
+    if [[ "$*" == *"clean"* ]] || [[ "$*" == *"initialize"* ]]; then
+      git submodule update --init --remote --merge
+      (
+        cd src/Engine/Dependencies/imgui
+        git checkout master
+      )
+    fi
+    mkdir build
   fi
-  mkdir build
-  ### ENABLE THIS IF LUAJIT DOESN'T COMPILE PROPERLY
-  # (
-  #   cd src/Engine/Dependencies/LuaJIT
-  #   unameOut="$(uname -s)"
-  #   if [[ "$unameOut" == "Linux"* ]]; then
-  #     make -j$(($(nproc) + 1))
-  #   fi
-  # )
+
   cd build
   unameOut="$(uname -s)"
   case "${unameOut}" in

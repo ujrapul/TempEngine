@@ -6,7 +6,7 @@
 #include "Component.hpp"
 #include "ComponentData.hpp"
 #include "ComponentType.hpp"
-
+#include "MemoryManager.hpp"
 #include <cstdint>
 
 namespace Temp::Component::Container
@@ -15,13 +15,15 @@ namespace Temp::Component::Container
 
   struct Data
   {
-    std::array<void*, MAX> components{};
+    void* components[MAX];
   };
 
   template <uint8_t T>
   constexpr void Init(Data& data)
   {
-    data.components[T] = new ArrayData<MapToComponentDataType<T>>();
+    data.components[T] = static_cast<ArrayData<MapToComponentDataType<T>>*>(
+      MemoryManager::data.Allocate(MemoryManager::Data::Type::SCENE_ARENA,
+                                   sizeof(ArrayData<MapToComponentDataType<T>>)));
     Temp::Component::Init(
       *static_cast<Temp::Component::ArrayData<MapToComponentDataType<T>>*>(data.components[T]));
   }
@@ -29,7 +31,6 @@ namespace Temp::Component::Container
   template <uint8_t T>
   constexpr void Destruct(Data& data)
   {
-    delete static_cast<ArrayData<MapToComponentDataType<T>>*>(data.components[T]);
     data.components[T] = nullptr;
   }
 
@@ -55,9 +56,21 @@ namespace Temp::Component::Container
   }
 
   template <uint8_t T>
-  constexpr void Set(Data& data, Entity::id entity, const MapToComponentDataType<T>& component)
+  constexpr void Set(Data& data, Entity::id entity, MapToComponentDataType<T> component)
   {
-    Component::Set(GetComponentArray<T>(data), entity, component);
+    Component::Set(GetComponentArray<T>(data), entity, std::move(component));
+  }
+
+  template <uint8_t T>
+  constexpr void SetCache(Data& data, Entity::id entity)
+  {
+    Component::SetCache(GetComponentArray<T>(data), entity);
+  }
+
+  template <uint8_t T>
+  [[nodiscard]] MapToComponentDataType<T> GetCache(Data& data, Entity::id entity)
+  {
+    return Component::GetCache(GetComponentArray<T>(data), entity);
   }
 
   template <uint8_t T>
@@ -70,4 +83,32 @@ namespace Temp::Component::Container
   void Destruct(Data& data);
   void EntityDestroyed(Data& data, Entity::id entity);
   void Reset(Data& data);
+}
+
+namespace Temp
+{
+  extern template struct Array<Component::Null, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  extern template struct Array<Entity::id, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  extern template struct Array<std::size_t, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  extern template struct Array<Component::CacheData<Component::Null>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  extern template struct Array<Math::Vec2f, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  extern template struct Array<Component::CacheData<Math::Vec2f>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  extern template struct Array<Component::Drawable::Data, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  extern template struct Array<Component::CacheData<Component::Drawable::Data>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  extern template struct Array<SceneString, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  extern template struct Array<Component::CacheData<SceneString>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  extern template struct Array<Component::Hoverable::Data, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  extern template struct Array<Component::CacheData<Component::Hoverable::Data>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  extern template struct Array<Component::Updateable::Data, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  extern template struct Array<Component::CacheData<Component::Updateable::Data>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  extern template Temp::Math::Vec2<float> Temp::Component::dummy<Temp::Math::Vec2<float>>;
+  extern template Temp::BaseString<Temp::MemoryManager::Data::Type::SCENE_ARENA> Temp::Component::dummy<Temp::BaseString<Temp::MemoryManager::Data::Type::SCENE_ARENA>>;
+  extern template Temp::Component::Drawable::Data Temp::Component::dummy<Temp::Component::Drawable::Data>;
+  extern template Temp::Component::Hoverable::Data Temp::Component::dummy<Temp::Component::Hoverable::Data>;
 }

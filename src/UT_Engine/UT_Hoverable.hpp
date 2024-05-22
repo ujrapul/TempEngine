@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "Array.hpp"
 #include "Camera.hpp"
 #include "Hoverable.hpp"
 #include "Scene.hpp"
@@ -40,13 +41,15 @@ namespace Temp::Component::Hoverable::UnitTests
     Hoverable::HoverableLeave(*scene, hoverable);
     Assert("Test Hoverable HoverableEnter", isHoverLeave && !hoverable.lastInside);
 
-    std::vector<std::vector<Math::Vec3f>> triangles = {
-      {
-        {0.f, 2.0f, 0.0},
-        {-2.f, -2.f, 0.0},
-        {2.f, -2.f, 0.0},
-      },
-    };
+    DynamicArray<DynamicArray<Math::Vec3f, MemoryManager::Data::SCENE_ARENA>,
+                 MemoryManager::Data::SCENE_ARENA>
+      triangles = {
+        {
+          {0.f, 2.0f, 0.0},
+          {-2.f, -2.f, 0.0},
+          {2.f, -2.f, 0.0},
+        },
+      };
     Component::Hoverable::Data hoverable2 = {
       .Click = nullptr,
       .HoverEnter = HoverEnter,

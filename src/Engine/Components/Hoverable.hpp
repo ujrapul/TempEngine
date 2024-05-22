@@ -4,10 +4,10 @@
 #pragma once
 
 #include "Math.hpp"
+#include "MemoryManager.hpp"
 #ifdef EDITOR
 #include "Drawable.hpp"
 #endif
-#include <cfloat>
 
 namespace Temp::Scene
 {
@@ -35,7 +35,9 @@ namespace Temp::Component::Hoverable
     bool isDrag{false};
     Math::Vec2f offset{};
     Math::Mat4 model{};
-    std::vector<std::vector<Math::Vec3f>> triangles{};
+    DynamicArray<DynamicArray<Math::Vec3f, MemoryManager::Data::SCENE_ARENA>,
+                 MemoryManager::Data::SCENE_ARENA>
+      triangles{};
 #ifdef EDITOR
     Drawable::Data drawable{};
 #endif
@@ -43,7 +45,9 @@ namespace Temp::Component::Hoverable
     bool operator==(const Data& other) const = default;
   };
 
-  inline std::ostream& operator<<(std::ostream& os, const std::vector<Math::Vec3f>& triangle)
+  inline std::ostream& operator<<(
+    std::ostream& os,
+    const DynamicArray<Math::Vec3f, MemoryManager::Data::SCENE_ARENA>& triangle)
   {
     os << "{";
     for (const auto& vertex : triangle)
@@ -54,8 +58,10 @@ namespace Temp::Component::Hoverable
     return os;
   }
 
-  inline std::ostream& operator<<(std::ostream& os,
-                                  const std::vector<std::vector<Math::Vec3f>>& triangles)
+  inline std::ostream& operator<<(
+    std::ostream& os,
+    const DynamicArray<DynamicArray<Math::Vec3f, MemoryManager::Data::SCENE_ARENA>,
+                       MemoryManager::Data::SCENE_ARENA>& triangles)
   {
     os << "Triangles{";
     for (const auto& triangle : triangles)

@@ -7,7 +7,6 @@
 #include "UT_Event.hpp"
 #include "UT_Hoverable.hpp"
 #include "UT_LevelSerializer.hpp"
-#include "UT_Luable.hpp"
 #include "UT_Math.hpp"
 #include "UT_Scene.hpp"
 #include "UT_ThreadPool.hpp"
@@ -32,7 +31,6 @@ int main()
   LevelSerializer::UnitTests::Run();
   Logger::logType = Logger::LogType::NOOP;
   ThreadPool::UnitTests::Run();
-  Component::Luable::UnitTests::Run();
   Scene::UnitTests::Run();
   Entity::UnitTests::Run();
 

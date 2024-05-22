@@ -5,10 +5,6 @@
 
 #include "Engine.hpp"
 #include "Logger.hpp"
-#include <cassert>
-#include <chrono>
-#include <iostream>
-#include <string>
 
 namespace Temp
 {
@@ -23,12 +19,12 @@ namespace Temp
       auto end = std::chrono::high_resolution_clock::now();
       return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
     }
-    ~Timer() { Logger::Log(name + ": " + std::to_string(getTime()) + " nanoseconds"); }
+    ~Timer() { Logger::Log(String(name.c_str()) + ": " + String::ToString(getTime()) + " nanoseconds"); }
   };
 
   struct MockComponent
   {
-    std::string name{""};
+    const char* name{""};
     int value{};
     bool toggle{false};
 
@@ -39,12 +35,12 @@ namespace Temp
   {
     auto& objects = scene.objects;
     auto& table = scene.objectsNameIdxTable;
-    for (size_t i = 0; i < objects.size(); ++i)
+    for (size_t i = 0; i < objects.size; ++i)
     {
       SceneObject::Destruct(scene, objects[i]);
     }
-    objects.clear();
-    table.clear();
+    objects.Clear();
+    table.Clear();
   }
 
   inline void Assert(const char* testName, bool value)

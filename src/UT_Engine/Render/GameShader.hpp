@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "Array.hpp"
 #include "Shader.hpp"
 
 namespace Temp::Render
@@ -16,7 +17,7 @@ namespace Temp::Render
     };
   }
 
-  inline void ExtensionShaderFiles(std::vector<const char*>&)
+  inline void ExtensionShaderFiles(GlobalDynamicArray<const char*>&)
   {
   }
 }

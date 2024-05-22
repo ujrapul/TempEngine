@@ -1,11 +1,10 @@
+// SPDX-FileCopyrightText: 2023 Ujwal Vujjini
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
+#include "Array_fwd.hpp"
 #include "Logger.hpp"
-
-#include <cstdint>
-#include <fstream>
-#include <iostream>
-#include <vector>
 
 namespace Temp::TGA
 {
@@ -28,12 +27,12 @@ namespace Temp::TGA
 #pragma pack(pop)
 
   // NOTE: Exporting from Krita requires to flip the image to come right-side up here
-  inline bool Read(const std::string& filename, Header& header, std::vector<uint8_t>& pixels)
+  inline bool Read(const String& filename, Header& header, DynamicArray<uint8_t>& pixels)
   {
-    std::ifstream file(filename, std::ios::binary);
+    std::ifstream file(filename.c_str(), std::ios::binary);
     if (!file)
     {
-      Logger::LogErr("[TGA] Could not open file: " + filename);
+      Logger::LogErr(String("[TGA] Could not open file: ") + filename);
       return false;
     }
 
@@ -44,7 +43,8 @@ namespace Temp::TGA
     // Ensure the image type is uncompressed RGB (2 or 10)
     if (header.imageType != 2 && header.imageType != 10)
     {
-      Logger::LogErr("[TGA] Unsupported TGA image type: " + std::to_string(static_cast<int>(header.imageType)));
+      Logger::LogErr(String("[TGA] Unsupported TGA image type: ") +
+                     String::ToString(static_cast<int>(header.imageType)));
       return false;
     }
 
@@ -52,8 +52,8 @@ namespace Temp::TGA
     file.seekg(header.idLength + sizeof(Header));
 
     // Read pixel data
-    pixels = std::vector<std::uint8_t>(header.width * header.height * (header.bitsPerPixel / 8));
-    file.read(reinterpret_cast<char*>(pixels.data()), pixels.size());
+    pixels.Resize(header.width * header.height * (header.bitsPerPixel / 8));
+    file.read(reinterpret_cast<char*>(pixels.buffer), pixels.size);
     // for (size_t i = 0; i < pixels.size(); i += 4)
     // {
     //   auto b = pixels[i];

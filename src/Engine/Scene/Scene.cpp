@@ -2,23 +2,26 @@
 // SPDX-License-Identifier: MIT
 
 #include "Scene.hpp"
-#include "AudioSystem.hpp"
+#include "Array_fwd.hpp"
 #include "ComponentType.hpp"
 #include "Drawable.hpp"
 #include "EditorGrid.hpp"
+#include "Engine.hpp"
+#include "EngineUtils.hpp"
+#include "Entity.hpp"
+#include "EntityData.hpp"
+#include "HashMap.hpp"
 #include "Hoverable.hpp"
 #include "LevelSerializer.hpp"
 #include "Logger.hpp"
-#include "Luable.hpp"
 #include "Math.hpp"
+#include "MemoryManager.hpp"
 #include "OpenGLWrapper.hpp"
 #include "SceneObject.hpp"
 #include "Shader.hpp"
+#include "TextBox.hpp"
 #include "ThreadPool.hpp"
 #include "Updateable.hpp"
-#include "lua.h"
-#include <cstddef>
-#include <string>
 
 namespace Temp::Scene
 {
@@ -53,29 +56,31 @@ namespace Temp::Scene
     void DestroyEntity(Scene::Data& scene, SceneObject::Data& object)
     {
       Temp::Scene::DestroyEntity(scene, object.entity);
-      scene.objectsNameIdxTable[object.name] = INT_MAX;
+      scene.objectsNameIdxTable[object.name.c_str()] = INT_MAX;
       scene.entityObjectIdxTable[object.entity] = INT_MAX;
     }
   }
 
   void Construct(Data& scene)
   {
-    scene.objects.reserve(Entity::MAX);
+    scene.objects = SceneDynamicArray<SceneObject::Data>(true, Entity::MAX);
+    scene.objectsNameIdxTable = SceneStringHashMap<int>();
+    scene.entityObjectIdxTable = SceneDynamicArray<int>(true, Entity::MAX);
 #ifndef EDITOR
-    isDeserialized = LevelSerializer::Deserialize(scene, scene.sceneFns.name + ".level");
+    isDeserialized = LevelSerializer::Deserialize(scene, (String(scene.sceneFns->name.c_str()) + ".level").c_str());
     if (isDeserialized)
     {
 #else
     EditorGrid::Construct(scene, editorGrid);
 #endif
-      for (size_t i = 0; i < scene.objects.size(); ++i)
+      for (size_t i = 0; i < scene.objects.size; ++i)
       {
         CreateEntity(scene, (int)i);
         SceneObject::Construct(scene, scene.objects[i]);
       }
 #ifndef EDITOR
 
-      scene.sceneFns.ConstructFunc(scene);
+      scene.sceneFns->ConstructFunc(scene);
     }
 #endif
   }
@@ -90,56 +95,61 @@ namespace Temp::Scene
 #ifdef EDITOR
     EditorGrid::Destruct(scene, editorGrid);
 #endif
-    scene.objects.clear();
-    scene.objectsNameIdxTable.clear();
-    scene.entityObjectIdxTable.clear();
-    scene.sceneFns.DestructFunc(scene);
+    scene.objectsNameIdxTable.Clear();
+    scene.entityObjectIdxTable.Clear();
+    scene.sceneFns->DestructFunc(scene);
     SceneObject::ClearActiveDataCache();
-    Entity::Reset(scene.entityData);
+    MemoryManager::data.FreeAll();
+    dummy = {};
+    if (Global::IsActive())
+    {
+      Entity::Reset(scene.entityData);
+    }
+    else
+    {
+      Entity::Destruct(scene.entityData);
+    }
   }
 
-  void UpdateLegacy(Data& scene, lua_State* L, float deltaTime)
+  void UpdateLegacy(Data& scene, float deltaTime)
   {
-    auto& updateableArray = Scene::GetComponentArray<Component::Type::UPDATEABLE>(
-      scene);
+    auto& updateableArray = Scene::GetComponentArray<Component::Type::UPDATEABLE>(scene);
     for (size_t i = 0; i < updateableArray.size; ++i)
     {
       Component::Updateable::Update(scene, updateableArray.array[i], deltaTime);
     }
-    auto& luableArray = Scene::GetComponentArray<Component::Type::LUABLE>(scene);
-    for (size_t i = 0; i < luableArray.size; ++i)
-    {
-      auto& luable = luableArray.array[i];
-      Component::Luable::LoadScript(luable, L);
-      luable.luaExec(L, deltaTime);
-    }
-    scene.sceneFns.UpdateFunc(scene, deltaTime);
+    scene.sceneFns->UpdateFunc(scene, deltaTime);
   }
 
   void Update(Data& scene, float deltaTime)
   {
-    auto f = [&scene, deltaTime](Component::Updateable::Data& updateable) {
-      Component::Updateable::Update(scene, updateable, deltaTime);
-    };
-    auto luaF = [deltaTime](Component::Luable::Data& luable, lua_State* L) {
-      Component::Luable::LoadScript(luable, L);
-      luable.luaExec(L, deltaTime);
-    };
-    auto& updateableArray = Scene::GetComponentArray<Component::Type::UPDATEABLE>(
-      scene);
-    ThreadPool::EnqueueForEach(scene.threadPool,
-                               updateableArray.array,
-                               std::move(f),
-                               updateableArray.size);
-    ThreadPool::Wait(scene.threadPool);
+    {
+      // DONT SCOPE MEMORY HERE | IT WILL CLASH WITH OTHER THREADS
+      // auto f = [&scene, deltaTime](Component::Updateable::Data& updateable) {
+      //   Component::Updateable::Update(scene, updateable, deltaTime);
+      // };
+      auto& updateableArray = Scene::GetComponentArray<Component::Type::UPDATEABLE>(scene);
 
-    ThreadPool::EnqueueLuaForEach(
-      scene.threadPool,
-      Scene::GetComponentArray<Component::Type::LUABLE>(scene),
-      std::move(luaF));
-    ThreadPool::Wait(scene.threadPool);
+      struct TaskData
+      {
+        Component::Updateable::Data* updateable{nullptr};
+        Scene::Data* scene{nullptr};
+        float deltaTime;
+      };
+      DynamicArray<void*> tasks;
+      for (size_t i = 0; i < updateableArray.size; ++i)
+      {
+        tasks.PushBack(MemoryManager::CreateTemp<TaskData>(&updateableArray.array[i], &scene, deltaTime));
+      }
+      auto f = [](void* data) {
+        TaskData* taskData = static_cast<TaskData*>(data);
+        Component::Updateable::Update(*taskData->scene, *taskData->updateable, taskData->deltaTime);
+      };
+      ThreadPool::EnqueueForEach(scene.threadPool, tasks.buffer, f, tasks.size);
+      ThreadPool::Wait(scene.threadPool);
+    }
 
-    scene.sceneFns.UpdateFunc(scene, deltaTime);
+    scene.sceneFns->UpdateFunc(scene, deltaTime);
   }
 
   void DrawConstruct(Data& scene)
@@ -152,7 +162,7 @@ namespace Temp::Scene
       SceneObject::DrawConstruct(scene, object);
     }
 
-    scene.sceneFns.DrawConstructFunc(scene);
+    scene.sceneFns->DrawConstructFunc(scene);
   }
 
   void DrawDestruct(Data& scene)
@@ -170,10 +180,10 @@ namespace Temp::Scene
       Component::Drawable::Destruct(drawableArray.array[i]);
     }
 
-    scene.sceneFns.DrawDestructFunc(scene);
+    scene.sceneFns->DrawDestructFunc(scene);
   }
 
-  void DrawUpdate(Data& scene) { scene.sceneFns.DrawUpdateFunc(scene); }
+  void DrawUpdate(Data& scene) { scene.sceneFns->DrawUpdateFunc(scene); }
 
 #ifdef DEBUG
   void DrawReload(Data& scene, int shaderIdx)
@@ -242,23 +252,29 @@ namespace Temp::Scene
     auto& drawableArray = Scene::GetComponentArray<Component::Type::DRAWABLE>(scene);
     for (size_t i = 0; i < drawableArray.size; ++i)
     {
-      Component::Drawable::Draw(drawableArray.array[i]);
+      Component::Drawable::Draw(
+        scene,
+        scene.objects[scene.entityObjectIdxTable[drawableArray.array[i].entity]],
+        drawableArray.array[i]);
 #ifdef EDITOR
       if (drawableArray.array[i].entity == editorGrid.entity)
       {
         continue;
       }
 #endif
-      Component::Drawable::DrawUpdate(
-        scene,
-        scene.objects[scene.entityObjectIdxTable[drawableArray.array[i].entity]],
-        drawableArray.array[i]);
+      // Component::Drawable::DrawUpdate(
+      //   scene,
+      //   scene.objects[scene.entityObjectIdxTable[drawableArray.array[i].entity]],
+      //   drawableArray.array[i]);
     }
 #ifdef EDITOR
     auto& hoverableArray = Scene::GetComponentArray<Component::Type::HOVERABLE>(scene);
     for (size_t i = 0; i < hoverableArray.size; ++i)
     {
-      Component::Drawable::Draw(hoverableArray.array[i].drawable, GL_LINE);
+      Component::Drawable::Draw(
+        scene,
+        scene.objects[scene.entityObjectIdxTable[hoverableArray.array[i].drawable.entity]],
+        hoverableArray.array[i].drawable, GL_LINE);
     }
 #endif
     Temp::Camera::UpdateOrthoScale(scene, (720.f / Temp::Camera::GetHeight()));
@@ -267,21 +283,21 @@ namespace Temp::Scene
 
   void ClearRender(Data& scene) { scene.renderQueue = {}; }
 
-  SceneObject::Data& GetObject(Scene::Data& scene, const std::string& name)
+  SceneObject::Data& GetObject(Scene::Data& scene, const char* name)
   {
     if (scene.objectsNameIdxTable[name] != INT_MAX)
     {
-      return scene.objects[scene.objectsNameIdxTable.at(name)];
+      return scene.objects[scene.objectsNameIdxTable[name]];
     }
     Logger::LogErr("Accessing invalid object by name!");
     return dummy;
   }
 
-  const SceneObject::Data& GetObject(const Scene::Data& scene, const std::string& name)
+  const SceneObject::Data& GetObject(const Scene::Data& scene, const char* name)
   {
-    if (scene.objectsNameIdxTable.at(name) != INT_MAX)
+    if (scene.objectsNameIdxTable[name] != INT_MAX)
     {
-      return scene.objects[scene.objectsNameIdxTable.at(name)];
+      return scene.objects[scene.objectsNameIdxTable[name]];
     }
     Logger::LogErr("Accessing invalid object by name!");
     return dummy;
@@ -291,7 +307,7 @@ namespace Temp::Scene
   {
     if (scene.entityObjectIdxTable[entity] != INT_MAX)
     {
-      return scene.objects[scene.entityObjectIdxTable.at(entity)];
+      return scene.objects[scene.entityObjectIdxTable[entity]];
     }
     Logger::LogErr("Accessing invalid object by entity!");
     return dummy;
@@ -299,9 +315,9 @@ namespace Temp::Scene
 
   const SceneObject::Data& GetObject(const Scene::Data& scene, Entity::id entity)
   {
-    if (scene.entityObjectIdxTable.at(entity) != INT_MAX)
+    if (scene.entityObjectIdxTable[entity] != INT_MAX)
     {
-      return scene.objects[scene.entityObjectIdxTable.at(entity)];
+      return scene.objects[scene.entityObjectIdxTable[entity]];
     }
     Logger::LogErr("Accessing invalid object by entity!");
     return dummy;
@@ -321,51 +337,89 @@ namespace Temp::Scene
 
     int count = 0;
     // Want to make sure all names are unique
-    while (!ValidateObjectName(scene, copy.name))
+    while (!ValidateObjectName(scene, copy.name.c_str()))
     {
-      copy.name = object.name + std::to_string(count++);
+      copy.name = (String(object.name.c_str()) + String::ToString(count++)).c_str();
     }
 
-    scene.objects.push_back(copy);
-    scene.objectsNameIdxTable[copy.name] = static_cast<int>(scene.objects.size() - 1);
-    return (int)scene.objects.size() - 1;
+    scene.objects.PushBack(copy);
+    scene.objectsNameIdxTable[copy.name.c_str()] = static_cast<int>(scene.objects.size - 1);
+    return (int)scene.objects.size - 1;
   }
 
-  void RemoveObject(Scene::Data& scene, const SceneObject::Data& object)
+  void RemoveObject(Scene::Data& scene, Entity::id entity)
   {
     size_t i = 0;
     for (auto it = scene.objects.begin(); it != scene.objects.end(); ++it, ++i)
     {
-      if (it->name == object.name)
+      if (it->entity == entity)
       {
         SceneObject::DrawDestruct(scene, *it);
         SceneObject::Destruct(scene, *it);
         DestroyEntity(scene, *it);
-        if (i == scene.objects.size() - 1)
+        if (i == scene.objects.size - 1)
         {
-          scene.objects.pop_back();
+          scene.objects.PopBack();
         }
         else
         {
-          scene.objects[i] = scene.objects.back();
-          scene.objects.pop_back();
+          scene.objects[i] = std::move(scene.objects.back());
+          scene.objects.PopBack();
           scene.entityObjectIdxTable[scene.objects[i].entity] = (int)i;
-          scene.objectsNameIdxTable[scene.objects[i].name] = (int)i;
+          scene.objectsNameIdxTable[scene.objects[i].name.c_str()] = (int)i;
         }
         return;
       }
     }
   }
 
-  bool ValidateObjectName(const Scene::Data& scene, const std::string& name)
+  bool ValidateObjectName(const Scene::Data& scene, const char* name)
   {
-    return scene.objectsNameIdxTable.find(name) == scene.objectsNameIdxTable.end();
+    return scene.objectsNameIdxTable.Find(name) == SIZE_MAX;
   }
 
-  void UpdateObjectName(Scene::Data& scene, SceneObject::Data& object, const std::string& name)
+  void UpdateObjectName(Scene::Data& scene, SceneObject::Data& object, const char* name)
   {
-    scene.objectsNameIdxTable[name] = scene.objectsNameIdxTable[object.name];
-    scene.objectsNameIdxTable.erase(scene.objectsNameIdxTable.find(object.name));
+    scene.objectsNameIdxTable[name] = scene.objectsNameIdxTable[object.name.c_str()];
+    scene.objectsNameIdxTable.Remove(object.name.c_str());
     object.name = name;
   }
+
+  void LoadSceneFnsFromDynamicLibrary(const std::string& name, SceneFns& sceneFns)
+  {
+    static std::unordered_map<std::string, void*> libHandles;
+    void* libHandle;
+    if (libHandles.contains(name))
+    {
+      libHandle = libHandles.at(name);
+    }
+    else
+    {
+      libHandles[name] = nullptr;
+      libHandle = libHandles[name];
+    }
+    sceneFns = {};
+    if (libHandle)
+    {
+      CloseDynamicLibrary(libHandle);
+    }
+    libHandle = OpenDynamicLibrary(name);
+
+    auto* CreateDynamic = (void* (*)())GetDynamicLibraryFn(libHandle, "CreateDynamic");
+    if (!CreateDynamic)
+    {
+      Logger::LogErr(String("[Scene] Failed to load CreateDynamic from: ") + name.c_str());
+      CloseDynamicLibrary(libHandle);
+      return;
+    }
+    SceneFns* copy = static_cast<SceneFns*>(CreateDynamic());
+    sceneFns = *copy;
+    Scene::Data sceneData;
+    sceneFns.UpdateFunc(sceneData, 0);
+    delete copy;
+
+    libHandles[name] = libHandle;
+  }
 }
+
+template std::_Deque_base<Temp::Scene::RenderData, std::allocator<Temp::Scene::RenderData> >::_Deque_base::~_Deque_base();

@@ -109,13 +109,15 @@ namespace Temp::Event::UnitTests
     Assert("Test Event Hover Leave when Mouse is not in Hoverable", !isHoverEnter && isHoverLeave);
     Assert("Test Event ButtonReleased when Mouse is not in Hoverable", !isButtonReleased);
 
-    std::vector<std::vector<Math::Vec3f>> triangles = {
-      {
-        {1.0f, 1.0f, 0.0},
-        {-1.f, -1.f, 0.0},
-        {1.f, -1.f, 0.0},
-      },
-    };
+    DynamicArray<DynamicArray<Math::Vec3f, MemoryManager::Data::SCENE_ARENA>,
+                 MemoryManager::Data::SCENE_ARENA>
+      triangles = {
+        {
+          {1.0f, 1.0f, 0.0},
+          {-1.f, -1.f, 0.0},
+          {1.f, -1.f, 0.0},
+        },
+      };
     Component::Hoverable::Data hoverable2 = {
       .Click = ButtonReleased,
       .HoverEnter = HoverEnter,

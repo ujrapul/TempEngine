@@ -23,11 +23,7 @@ namespace Temp::Event
 #endif
   }
 
-#ifdef EDITOR
   void KeyPressed(Event::Data& EventData, Input::KeyboardCode key)
-#else
-  void KeyPressed(Event::Data&, Input::KeyboardCode)
-#endif
   {
 #ifdef EDITOR
     auto& io = ImGui::GetIO();
@@ -51,11 +47,7 @@ namespace Temp::Event
 #endif
   }
 
-#ifdef EDITOR
   void KeyReleased(Event::Data& EventData, Input::KeyboardCode key)
-#else
-  void KeyReleased(Event::Data&, Input::KeyboardCode)
-#endif
   {
 #ifdef EDITOR
     auto& io = ImGui::GetIO();
@@ -76,7 +68,7 @@ namespace Temp::Event
       {
         if (EventData.selectedObject)
         {
-          Global::RemoveObject(*EventData.selectedObject);
+          Global::RemoveObject(EventData.selectedObject->entity);
           EventData.selectedObject = nullptr;
         }
       }
@@ -254,6 +246,7 @@ namespace Temp::Event
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     Temp::Font::LoadFont();
+    assert(MemoryManager::data.threadTempDataSize == 0);
     Temp::Render::OpenGLWrapper::LoadShaders();
 
     Resize(EventData);

@@ -3,17 +3,14 @@
 
 #include "FontLoader.hpp"
 
+#include "Array_fwd.hpp"
 #include "EngineUtils.hpp"
 #include "Logger.hpp"
-#include "Math.hpp"
+#include "MemoryManager.hpp"
 #include "OpenGLWrapper.hpp"
 #include "ThreadPool.hpp"
 #include "gl.h"
-#include <array>
-#include <filesystem>
-#include <iostream>
-#include <thread>
-#include <unordered_map>
+#include <string>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -30,21 +27,15 @@ namespace Temp::Font
   {
     struct GlyphData
     {
-      std::vector<unsigned char> buffer;
+      ThreadedDynamicArray<unsigned char> buffer{};
       unsigned int width;
       unsigned int rows;
       int left;
       int top;
       long advanceX;
-    };
 
-    std::unordered_map<int, std::unordered_map<char, Character>> fontTable;
-    std::unordered_map<int, std::unordered_map<char, GlyphData>> fontGlyphs;
-    std::unordered_map<int, std::string> fontFile = {
-      {Type::ARIMO, (std::filesystem::path("Arimo") / "Arimo-Regular.ttf").string()},
-      {Type::SHPINSCHER, (std::filesystem::path("SHPinscher") / "SHPinscher-Regular.otf").string()},
+      bool operator==(const GlyphData& other) const = default;
     };
-    std::vector<unsigned char> pixels;
 
     constexpr uint32_t padding = Padding();
     constexpr int fontSize = 128;
@@ -56,12 +47,20 @@ namespace Temp::Font
     constexpr uint32_t atlasHeight = (fontSize + padding * 2) * atlasTileHeight;
     constexpr uint32_t atlasSize = atlasWidth * atlasHeight;
 
-    void LoadFont(int type, unsigned char c)
+    typedef ThreadedArray<ThreadedArray<GlyphData, asciiNum>, Type::MAX> GlyphDataMap;
+    GlobalArray<GlobalArray<Character, asciiNum>, Type::MAX> fontTable;
+
+    std::string fontFile[Type::MAX] = {
+      (std::filesystem::path("Arimo") / "Arimo-Regular.ttf").string(),
+      (std::filesystem::path("SHPinscher") / "SHPinscher-Regular.otf").string(),
+    };
+
+    void LoadFont(int type, unsigned char c, GlyphDataMap& fontGlyphs)
     {
       FT_Library ft = nullptr;
       if (FT_Init_FreeType(&ft))
       {
-        Logger::LogErr("ERROR::FREETYPE: Could not init FreeType Library");
+        Logger::LogErr(String("ERROR::FREETYPE: Could not init FreeType Library"));
         return;
       }
       std::filesystem::path fontsPath = AssetsDirectory() / "Fonts" / fontFile[type];
@@ -69,7 +68,7 @@ namespace Temp::Font
       FT_Face face = nullptr;
       if (FT_New_Face(ft, fontsPath.string().c_str(), 0, &face))
       {
-        Logger::LogErr("ERROR::FREETYPE: Failed to load font");
+        Logger::LogErr(String("ERROR::FREETYPE: Failed to load font > ") + fontsPath.c_str());
         return;
       }
 
@@ -77,18 +76,18 @@ namespace Temp::Font
 
       if (FT_Load_Char(face, 'X', FT_LOAD_RENDER))
       {
-        Logger::LogErr("ERROR::FREETYTPE: Failed to load Glyph");
+        Logger::LogErr(String("ERROR::FREETYTPE: Failed to load Glyph"));
         return;
       }
 
       // load character glyph
       if (FT_Load_Char(face, c, FT_LOAD_RENDER))
       {
-        Logger::LogErr("ERROR::FREETYTPE: Failed to load Glyph");
+        Logger::LogErr(String("ERROR::FREETYTPE: Failed to load Glyph"));
         return;
       }
       FT_Render_Glyph(face->glyph, FT_RENDER_MODE_SDF); // <-- And this is new
-      std::vector<unsigned char> buffer(
+      DynamicArray<unsigned char, MemoryManager::Data::THREAD_TEMP> buffer(
         face->glyph->bitmap.buffer,
         face->glyph->bitmap.buffer + face->glyph->bitmap.width * face->glyph->bitmap.rows);
       fontGlyphs[type][c] = {
@@ -104,24 +103,28 @@ namespace Temp::Font
       FT_Done_FreeType(ft);
     }
 
-    void LoadFontTexture(int type)
+    void LoadFontTexture(int type,
+                         const GlyphDataMap& fontGlyphs,
+                         Array<unsigned char, atlasSize>& pixels)
     {
       Render::OpenGLWrapper::SetUnpackAlignment(1);
 
       uint32_t xOffset = 0;
       uint32_t yOffset = 0;
 
+      // Add an extra pixel offset to fix opengl errors
+      // TODO: Fix this to be more accurate
       GLuint texture = Render::OpenGLWrapper::CreateTexture(GL_RED,
-                                                            atlasWidth,
-                                                            atlasHeight,
-                                                            pixels.data(),
+                                                            atlasWidth + 1,
+                                                            atlasHeight + 1,
+                                                            pixels.buffer,
                                                             GL_CLAMP_TO_EDGE,
                                                             GL_NEAREST,
                                                             1);
 
       for (unsigned char c = 0; c < asciiNum; c++)
       {
-        auto& glyph = fontGlyphs[type][c];
+        const auto& glyph = fontGlyphs[type][c];
         auto textureWidth = glyph.width;
         auto textureHeight = glyph.rows;
 
@@ -129,7 +132,7 @@ namespace Temp::Font
                                                 yOffset + padding,
                                                 textureWidth,
                                                 textureHeight,
-                                                glyph.buffer.data());
+                                                glyph.buffer.buffer);
 
         // now store character for later use
         Character character = {
@@ -159,41 +162,41 @@ namespace Temp::Font
 
   void LoadFont()
   {
-    // We used a gigantic array before which came out to be around 2 mil+ items...
-    // Don't do that...
-    pixels.resize(atlasSize);
+    MemoryManager::ScopedTempMemory temp;
 
-    // Must initialize data in unordered_map to
-    // prevent data races when loading font data
-    for (int i = 0; i < Type::MAX; ++i)
-    {
-      fontTable[i] = {};
-      fontGlyphs[i] = {};
-      for (unsigned char j = 0; j < asciiNum; ++j)
-      {
-        fontTable[i][j] = {};
-        fontGlyphs[i][j] = {};
-      }
-    }
+    GlyphDataMap fontGlyphs{};
+    Array<unsigned char, atlasSize> pixels;
 
     ThreadPool::Data threadPool;
     ThreadPool::Initialize(threadPool);
+    struct TaskData
+    {
+      GlyphDataMap* fontGlyphs;
+      int i;
+      unsigned char c;
+    };
+    DynamicArray<void*> taskDatas;
     for (int i = 0; i < Type::MAX; ++i)
     {
       for (unsigned char c = 0; c < asciiNum; ++c)
       {
-        ThreadPool::Enqueue(threadPool, [i, c]() { LoadFont(i, c); });
+        taskDatas.PushBack(MemoryManager::CreateTemp<TaskData>(&fontGlyphs, i, c));
       }
     }
+    ThreadPool::EnqueueForEach(threadPool, taskDatas.buffer, [](void* data) {
+      auto taskData = static_cast<TaskData*>(data);
+      LoadFont(taskData->i, taskData->c, *taskData->fontGlyphs);
+    }, taskDatas.size);
     ThreadPool::Wait(threadPool);
     ThreadPool::Destruct(threadPool);
     for (int i = 0; i < Type::MAX; ++i)
     {
-      LoadFontTexture(i);
+      LoadFontTexture(i, fontGlyphs, pixels);
     }
-
-    FreeContainer(fontGlyphs);
   }
 
-  const std::unordered_map<char, Character>& Characters(int type) { return fontTable[type]; }
+  const Array<Character, asciiNum, MemoryManager::Data::Type::GLOBAL_ARENA>& Characters(int type)
+  {
+    return fontTable[type];
+  }
 }

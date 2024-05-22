@@ -15,20 +15,20 @@
 
 namespace Temp::LevelSerializer::UnitTests
 {
-  inline void TestDeserialize(Scene::Data &scene, const std::string &testName, const std::string &file)
+  inline void TestDeserialize(Scene::Data &scene, const std::string &testName, const char* file)
   {
     Assert(testName + " Test Level Parsing", Deserialize(scene, file));
 
     auto &objects = scene.objects;
     auto &table = scene.objectsNameIdxTable;
 
-    AssertEqual(testName + " Test Level Parsing objects size after Parse", (int)objects.size(), 2);
+    AssertEqual(testName + " Test Level Parsing objects size after Parse", (int)objects.size, 2);
     auto *object0 = static_cast<TextBox::Data *>(objects[0].data);
     auto *object1 = static_cast<TextButton::Data *>(objects[1].data);
     auto &subObject10 = object1->textBox;
     auto &constructData0 = *static_cast<TextBox::ConstructData *>(objects[0].constructData);
     auto &constructData1 = *static_cast<TextButton::ConstructData *>(objects[1].constructData);
-    for (size_t i = 0; i < objects.size(); ++i)
+    for (size_t i = 0; i < objects.size; ++i)
     {
       objects[i].entity = Scene::CreateEntity(scene);
       SceneObject::Construct(scene, objects[i]);
@@ -39,7 +39,7 @@ namespace Temp::LevelSerializer::UnitTests
     AssertEqual(testName + " Test Level Parsing object 0 valid (4 x)", constructData0.x, 0.f);
     AssertEqual(testName + " Test Level Parsing object 0 valid (5 y)", constructData0.y, 40.f);
     AssertEqual(testName + " Test Level Parsing object 0 valid (6 scale)", constructData0.scale, 0.04f);
-    AssertEqual(testName + " Test Level Parsing object 0 valid (7 table)", objects[table[objects[0].name]].data, objects[0].data);
+    AssertEqual(testName + " Test Level Parsing object 0 valid (7 table)", objects[table[objects[0].name.c_str()]].data, objects[0].data);
 
     AssertEqual(testName + " Test Level Parsing object 1 valid (1 type)", objects[1].type, (int)EntityType::TEXTBUTTON);
     AssertEqual(testName + " Test Level Parsing object 1 valid (2 name)", objects[1].name, {"NumberGameTextButton"});
@@ -51,7 +51,7 @@ namespace Temp::LevelSerializer::UnitTests
     AssertEqual(testName + " Test Level Parsing constructData 1 valid (8 y)", constructData1.hoverable.y, 0.f);
     AssertEqual(testName + " Test Level Parsing constructData 1 valid (9 width)", constructData1.hoverable.width, 9.f);
     AssertEqual(testName + " Test Level Parsing constructData 1 valid(10 height)", constructData1.hoverable.height, 4.f);
-    AssertEqual(testName + " Test Level Parsing constructData 1 valid(10 table)", objects[table[objects[1].name]].data, objects[1].data);
+    AssertEqual(testName + " Test Level Parsing constructData 1 valid(10 table)", objects[table[objects[1].name.c_str()]].data, objects[1].data);
   }
 
   inline void Run()
@@ -59,10 +59,10 @@ namespace Temp::LevelSerializer::UnitTests
     SceneObject::Init();
     Scene::Data scene;
     Entity::Init(scene.entityData);
-    scene.sceneFns.name = "SerializeTest";
+    scene.sceneFns->name = "SerializeTest";
 
     TestDeserialize(scene, "Deserialize", "Test.level");
-    Serialize(scene, (AssetsDirectory() / "Levels" / "SerializeTest.level").string());
+    Serialize(scene, (AssetsDirectory() / "Levels" / "SerializeTest.level").c_str());
     CleanupScene(scene);
     
     TestDeserialize(scene, "Serialize", "SerializeTest.level");

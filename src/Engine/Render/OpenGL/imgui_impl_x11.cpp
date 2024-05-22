@@ -20,10 +20,7 @@
 #include <X11/XKBlib.h>
 #include <X11/keysym.h>
 
-#include <cstdlib>
-#include <climits>
-#include <ctime>
-#include <cstdint>
+#include "STDPCH.hpp"
 
 // #include <iostream>
 

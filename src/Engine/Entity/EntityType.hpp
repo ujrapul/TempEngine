@@ -8,8 +8,6 @@
 #include "TextButton.hpp"
 #include "Sprite.hpp"
 #include "Null.hpp"
-#include <string>
-#include <thread>
 
 namespace Temp::Mock
 {

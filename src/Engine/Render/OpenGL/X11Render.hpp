@@ -3,7 +3,10 @@
 
 #pragma once
 
-#include "Scene.hpp"
+namespace Temp::Scene
+{
+  struct Data;
+}
 
 namespace Temp::Render
 {

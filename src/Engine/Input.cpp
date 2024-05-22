@@ -2,11 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "Input.hpp"
-#include "Event.hpp"
-#include "Scene.hpp"
-
-#include <algorithm>
-#include <iostream>
 
 // #define test_bit(bit, array)    ((array)[(bit)/8] & (1 << ((bit)%8)))
 
@@ -15,7 +10,7 @@ namespace Temp::Input
   namespace
   {
     constexpr void ActivateCallBack(KeyboardCode keyCode,
-                                    std::array<std::vector<void (*)(KeyboardCode)>, 256>& keyEvents)
+                                    GlobalDynamicArray<void (*)(KeyboardCode)>* keyEvents)
     {
       for (auto fn : keyEvents[static_cast<int>(keyCode)])
       {
@@ -70,43 +65,50 @@ namespace Temp::Input
 
   void AddPressCallback(void (*FnPtr)(KeyboardCode), Data& data, KeyboardCode keyCode)
   {
-    std::vector<void (*)(KeyboardCode)>& keyEvents = data.pressKeyEvents[static_cast<int>(keyCode)];
+    GlobalDynamicArray<void (*)(KeyboardCode)>& keyEvents = data.pressKeyEvents[static_cast<int>(keyCode)];
     if (std::find(keyEvents.begin(), keyEvents.end(), FnPtr) != keyEvents.end())
     {
       return;
     }
-    keyEvents.push_back(FnPtr);
+    keyEvents.PushBack(FnPtr);
   }
 
   void RemovePressCallback(void (*FnPtr)(KeyboardCode), Data& data, KeyboardCode keyCode)
   {
-    std::vector<void (*)(KeyboardCode)>& keyEvents = data.pressKeyEvents[static_cast<int>(keyCode)];
-    auto iterator = std::find(keyEvents.begin(), keyEvents.end(), FnPtr);
-    if (iterator != keyEvents.end())
+    GlobalDynamicArray<void (*)(KeyboardCode)>& keyEvents = data.pressKeyEvents[static_cast<int>(keyCode)];
+    auto pos = keyEvents.Find(FnPtr);
+    if (pos != SIZE_MAX)
     {
-      keyEvents.erase(iterator);
+      if (pos < (keyEvents.size - 1))
+      {
+        keyEvents[pos] = std::move(keyEvents.back());
+      }
+      keyEvents.PopBack();
     }
   }
 
   void AddReleaseCallback(void (*FnPtr)(KeyboardCode), Data& data, KeyboardCode keyCode)
   {
-    std::vector<void (*)(KeyboardCode)>& keyEvents = data
-                                                       .releaseKeyEvents[static_cast<int>(keyCode)];
-    if (std::find(keyEvents.begin(), keyEvents.end(), FnPtr) != keyEvents.end())
+    GlobalDynamicArray<void (*)(KeyboardCode)>& keyEvents = data.releaseKeyEvents[static_cast<int>(keyCode)];
+    auto pos = keyEvents.Find(FnPtr);
+    if (pos != SIZE_MAX)
     {
       return;
     }
-    keyEvents.push_back(FnPtr);
+    keyEvents.PushBack(FnPtr);
   }
 
   void RemoveReleaseCallback(void (*FnPtr)(KeyboardCode), Data& data, KeyboardCode keyCode)
   {
-    std::vector<void (*)(KeyboardCode)>& keyEvents = data
-                                                       .releaseKeyEvents[static_cast<int>(keyCode)];
-    auto iterator = std::find(keyEvents.begin(), keyEvents.end(), FnPtr);
-    if (iterator != keyEvents.end())
+    GlobalDynamicArray<void (*)(KeyboardCode)>& keyEvents = data.releaseKeyEvents[static_cast<int>(keyCode)];
+    auto pos = keyEvents.Find(FnPtr);
+    if (pos != SIZE_MAX)
     {
-      keyEvents.erase(iterator);
+      if (pos < (keyEvents.size - 1))
+      {
+        keyEvents[pos] = std::move(keyEvents.back());
+      }
+      keyEvents.PopBack();
     }
   }
 }

@@ -15,12 +15,12 @@ set ( ENGINE_INCLUDE_DIRS
   ${CMAKE_SCRIPT_DIR}/Audio
   ${CMAKE_SCRIPT_DIR}/Components
   ${CMAKE_SCRIPT_DIR}/Dependencies
-  ${CMAKE_SCRIPT_DIR}/Dependencies/LuaJIT/src
   ${CMAKE_SCRIPT_DIR}/Dependencies/imgui
   ${CMAKE_SCRIPT_DIR}/Dependencies/imgui/backends
   ${CMAKE_SCRIPT_DIR}/Editor
   ${CMAKE_SCRIPT_DIR}/Entity
   ${CMAKE_SCRIPT_DIR}/LevelSerializer
+  ${CMAKE_SCRIPT_DIR}/Memory
   ${CMAKE_SCRIPT_DIR}/Render
   ${CMAKE_SCRIPT_DIR}/Render/OpenGL
   ${CMAKE_SCRIPT_DIR}/Render/OpenGL/Shaders
@@ -33,24 +33,30 @@ set ( ENGINE_SRC
   ${CMAKE_SCRIPT_DIR}/Components/ComponentContainer.cpp
   ${CMAKE_SCRIPT_DIR}/Components/Drawable.cpp
   ${CMAKE_SCRIPT_DIR}/Components/Hoverable.cpp
-  ${CMAKE_SCRIPT_DIR}/Components/Luable.cpp
   ${CMAKE_SCRIPT_DIR}/Components/Updateable.cpp
   ${CMAKE_SCRIPT_DIR}/Engine.cpp
   ${CMAKE_SCRIPT_DIR}/EngineUtils.cpp
   ${CMAKE_SCRIPT_DIR}/Entity/EntityData.cpp
+  ${CMAKE_SCRIPT_DIR}/Entity/Sprite.cpp
   ${CMAKE_SCRIPT_DIR}/Entity/TextBox.cpp
   ${CMAKE_SCRIPT_DIR}/Entity/TextButton.cpp
-  ${CMAKE_SCRIPT_DIR}/Entity/Sprite.cpp
   ${CMAKE_SCRIPT_DIR}/Event.cpp
   ${CMAKE_SCRIPT_DIR}/FontLoader.cpp
   ${CMAKE_SCRIPT_DIR}/Input.cpp
   ${CMAKE_SCRIPT_DIR}/LevelSerializer/LevelSerializer.cpp
+  ${CMAKE_SCRIPT_DIR}/Logger.cpp
+  ${CMAKE_SCRIPT_DIR}/Math.cpp
+  ${CMAKE_SCRIPT_DIR}/Memory/Array.cpp
   ${CMAKE_SCRIPT_DIR}/Render/OpenGL/CommonRender.cpp
   ${CMAKE_SCRIPT_DIR}/Render/OpenGL/OpenGLWrapper.cpp
   ${CMAKE_SCRIPT_DIR}/Render/Shader.cpp
+  ${CMAKE_SCRIPT_DIR}/STD.cpp
   ${CMAKE_SCRIPT_DIR}/Scene/Scene.cpp
   ${CMAKE_SCRIPT_DIR}/Scene/SceneObject.cpp
   ${CMAKE_SCRIPT_DIR}/ThreadPool.cpp
+)
+set (ENGINE_PCH_HEADER
+  ${CMAKE_SCRIPT_DIR}/EnginePCH.hpp
 )
 set (EDITOR_SRC
   ${CMAKE_SCRIPT_DIR}/Editor/Editor.cpp
@@ -72,6 +78,11 @@ elseif (LINUX)
   list (APPEND EDITOR_SRC
     ${CMAKE_SCRIPT_DIR}/Render/OpenGL/imgui_impl_x11.cpp
   )
+  if (CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    list (APPEND ENGINE_SRC
+      ${CMAKE_SCRIPT_DIR}/Render/OpenGL/imgui_impl_x11.cpp
+    )
+  endif()
 elseif (APPLE)
   list (APPEND ENGINE_SRC
     # Add your Objective-C and C++ source files
@@ -105,16 +116,6 @@ function(make_library TARGET)
   # target_compile_options(${TARGET} PRIVATE -fsanitize=address)
   # target_link_options(${TARGET} PRIVATE -fsanitize=address)
 
-  # Link with LuaJIT library
-  add_dependencies(${TARGET} LuaJIT)
-  if(UNIX)
-    target_link_libraries(${TARGET} PRIVATE ${LUAJIT_SOURCE_DIR}/src/libluajit.a)
-  elseif(WIN32)
-    target_link_libraries(${TARGET} PRIVATE
-      ${LUAJIT_SOURCE_DIR}/luajit.lib
-      ${LUAJIT_SOURCE_DIR}/lua51.lib)
-  endif()
-
   target_include_directories(${TARGET} SYSTEM PRIVATE ${CMAKE_SCRIPT_DIR}/Dependencies/freetype/include)
   target_link_libraries(${TARGET} PRIVATE freetype)
 
@@ -125,16 +126,12 @@ function(make_library TARGET)
   )
 
   target_compile_options(${TARGET} PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
-    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
+    # wd4100 - MSVC silence unused parameters
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4100>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wno-unused-parameter>
   )
 
-  if (WIN32)
-    add_custom_command(TARGET ${TARGET} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${LUAJIT_SOURCE_DIR}/lua51.dll"
-        $<TARGET_FILE_DIR:${TARGET}>)
-  elseif (LINUX)
+  if (LINUX)
     add_custom_command(TARGET ${TARGET} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "/usr/lib/libsndfile-custom/libsndfile.so"
@@ -179,6 +176,9 @@ endfunction()
 # add_library(${TARGET_ENGINE_EDITOR} STATIC ${ENGINE_SRC} ${EDITOR_SRC})
 
 function(link_engine TARGET)
+  if (CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    target_link_libraries(${TARGET} PRIVATE imgui)
+  endif()
   make_library(${TARGET})
 endfunction()
 

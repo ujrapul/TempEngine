@@ -2,19 +2,19 @@
 // SPDX-License-Identifier: MIT
 
 #include "EditorGrid.hpp"
+#include "Array_fwd.hpp"
 #include "ComponentType.hpp"
 #include "Drawable.hpp"
 #include "OpenGLWrapper.hpp"
 #include "Scene.hpp"
 #include "Shader.hpp"
-#include <climits>
 
 namespace Temp::EditorGrid
 {
   namespace
   {
     // Define the square vertices
-    std::vector<float> vertices = {
+    float vertices[8] = {
       // positions      // texture coords
       0.5f,
       0.5f,
@@ -27,7 +27,7 @@ namespace Temp::EditorGrid
     };
 
     // Define the indices
-    std::vector<GLuint> indices = {
+    GLuint indices[6] = {
       0,
       1,
       3, // First Triangle
@@ -41,8 +41,8 @@ namespace Temp::EditorGrid
   {
     editorGrid.entity = Scene::CreateEntity(scene);
     Temp::Component::Drawable::Data drawable{
-      .vertices = vertices,
-      .indices = indices,
+      .vertices = {vertices, 8},
+      .indices = {indices, 6},
       .entity = editorGrid.entity,
     };
     Scene::AddComponent<Component::Type::DRAWABLE>(scene, editorGrid.entity, drawable);
@@ -53,20 +53,20 @@ namespace Temp::EditorGrid
     using namespace Temp::Render;
 
     auto& drawable = Scene::Get<Temp::Component::Type::DRAWABLE>(scene, editorGrid.entity);
-    Component::Drawable::UpdateData(drawable, vertices, indices);
+    Component::Drawable::UpdateData(drawable);
     Component::Drawable::Construct(drawable, shaderType, GL_STATIC_DRAW, {2}, 2);
     OpenGLWrapper::UnbindBuffers();
   }
 
   void DrawUpdate(Scene::Data&, Data&) {}
 
-  void DrawDestruct(Scene::Data& scene, Data& editorGrid)
+  void DrawDestruct(Scene::Data&, Data&)
   {
-    if (editorGrid.entity != Entity::MAX)
-    {
-      auto& drawable = Scene::Get<Temp::Component::Type::DRAWABLE>(scene, editorGrid.entity);
-      Component::Drawable::Destruct(drawable);
-    }
+    // if (editorGrid.entity != Entity::MAX)
+    // {
+    //   auto& drawable = Scene::Get<Temp::Component::Type::DRAWABLE>(scene, editorGrid.entity);
+    //   Component::Drawable::Destruct(drawable);
+    // }
   }
 
   void Destruct(Scene::Data& scene, Data& editorGrid)

@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: MIT
 
 #include "EngineUtils.hpp"
-#ifdef __APPLE__
+#include "Logger.hpp"
+#ifdef __linux__
+#include <dlfcn.h>
+#elif __APPLE__
 #include <mach-o/dyld.h>
 #elif _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #endif
-#include <algorithm>
-#include <span>
 
 namespace Temp
 {
@@ -66,7 +67,37 @@ namespace Temp
 
   const std::filesystem::path& AssetsDirectory()
   {
-    static std::filesystem::path applicationDirectory{GetApplicationDirectory() / "Assets"};
-    return applicationDirectory;
+    static std::filesystem::path assetsDirectory{GetApplicationDirectory() / "Assets"};
+    return assetsDirectory;
+  }
+
+  void* OpenDynamicLibrary(const std::string& name)
+  {
+    void* libHandle = nullptr;
+#ifdef __linux__
+    libHandle = dlopen(("lib" + name + ".so").c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (!libHandle)
+    {
+      Logger::LogErr(String("[EngineUtils] Error loading library ") + dlerror());
+    }
+#endif
+    return libHandle;
+  }
+
+  void* GetDynamicLibraryFn(void* libraryHandle, const std::string& fn)
+  {
+#ifdef __linux__
+    return dlsym(libraryHandle, fn.c_str());
+#endif
+  }
+
+  void CloseDynamicLibrary(void* libraryHandle)
+  {
+#ifdef __linux__
+    if (dlclose(libraryHandle))
+    {
+      Logger::LogErr(String("[EngineUtils] Error closing library ") + dlerror());
+    }
+#endif
   }
 }

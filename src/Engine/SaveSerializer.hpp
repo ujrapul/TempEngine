@@ -3,13 +3,11 @@
 
 #pragma once
 
+#include "Array.hpp"
 #include "EngineUtils.hpp"
 #include "Logger.hpp"
-#include <chrono>
-#include <format>
-#include <fstream>
-#include <string>
-#include <vector>
+#include <cstddef>
+#include <cstring>
 
 namespace Temp::SaveSerializer
 {
@@ -53,7 +51,7 @@ namespace Temp::SaveSerializer
         };
       }
     }
-    std::vector<Data> datas;
+    DynamicArray<Data> datas;
   };
 
   inline void Save(const DataList& dataList)
@@ -101,10 +99,10 @@ namespace Temp::SaveSerializer
 
   inline bool Load(DataList& dataList)
   {
-    std::string contents;
+    String contents;
     try
     {
-      ReadFile(contents, (ApplicationDirectory() / "Save").string());
+      ReadFile(contents, (ApplicationDirectory() / "Save").c_str());
     }
     catch (const std::exception&)
     {
@@ -112,44 +110,45 @@ namespace Temp::SaveSerializer
       return false;
     }
 
-    std::istringstream f(contents);
-    std::string line;
-    line.reserve(4096);
-
-    while (std::getline(f, line))
+    char* line = contents.Buffer();
+    while (line)
     {
-      line = Trim(line);
-      if (line.starts_with("//") || line.empty())
+      char* nextline = strchr(line, '\n');
+      size_t length = nextline ? nextline - line : strlen(line);
+      String tempLine(line, line + length);
+      Trim(tempLine).c_str();
+      line = nextline ? nextline + 1 : nullptr;
+      if (tempLine.starts_with("//") || tempLine.empty())
       {
         continue;
       }
-      auto split = SplitString(line, " ");
-      if (split.size() < 2)
+      auto split = SplitString(tempLine.c_str(), " ");
+      if (split.size < 2)
       {
         return false;
       }
       auto state = split[0];
       Data data;
-      data.type = static_cast<Type>(atoi(split[1].data()));
+      data.type = static_cast<Type>(atoi(split[1].c_str()));
       switch (data.type)
       {
         case Type::BOOL:
-          data.state = new bool((bool)atoi(state.data()));
+          data.state = new bool((bool)atoi(state.c_str()));
           break;
         case Type::FLOAT:
-          data.state = new float((float)atof(state.data()));
+          data.state = new float((float)atof(state.c_str()));
           break;
         case Type::INT:
-          data.state = new int(atoi(state.data()));
+          data.state = new int(atoi(state.c_str()));
           break;
         case Type::STRING:
-          data.state = new std::string(state);
+          data.state = new std::string(state.c_str());
           break;
         case Type::MAX:
         default:
           break;
       }
-      dataList.datas.push_back(data);
+      dataList.datas.PushBack(data);
     }
     return true;
   }

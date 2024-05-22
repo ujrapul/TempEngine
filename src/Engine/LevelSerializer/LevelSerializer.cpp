@@ -3,17 +3,15 @@
 
 #include "LevelSerializer.hpp"
 #include "EntityType.hpp"
+#include "HashMap.hpp"
 #include "Logger.hpp"
+#include "MemoryManager.hpp"
 #include "Shader.hpp"
 #include "TextBox.hpp"
 #include "TextButton.hpp"
 
 #include "GameLevelSerializer.hpp"
-
-#include <cerrno>
-#include <fstream>
 #include <string>
-#include <string_view>
 
 // clang-format off
 namespace Temp::LevelSerializer
@@ -26,8 +24,8 @@ namespace Temp::LevelSerializer
 
     void SetObject(SceneObject::Data& object, std::tuple<DeserializeData, bool>& data)
     {
-      auto dataGet = std::get<0>(data);
-      object.name = dataGet.get<Type::NAME>();
+      const auto& dataGet = std::get<0>(data);
+      object.name = dataGet.get<Type::NAME>().c_str();
       object.shaderType = dataGet.get<Type::SHADER>();
 #ifdef EDITOR
       if (object.shaderType >= 0)
@@ -40,45 +38,43 @@ namespace Temp::LevelSerializer
       auto out = Deserialize(data);
       if (!std::get<1>(out))
       {
-        Logger::LogErr("[Deserialize] Invalid Sprite at line " + std::to_string(data.lineNumber) + ": " +
-                       data.line);
+        Logger::LogErr(String("[Deserialize] Invalid Sprite at line ") + String::ToString(data.lineNumber) + ": " +
+                       data.line.c_str());
         return false;
       }
       SceneObject::Data object;
-      auto* sprite = new Sprite::Data();
-      auto* spriteCtor = new Sprite::ConstructData();
-      auto spriteData = std::get<0>(out);
+      auto* sprite = MemoryManager::CreateScene<Sprite::Data>();
+      auto* spriteCtor = MemoryManager::CreateScene<Sprite::ConstructData>();
+      const auto& spriteData = std::get<0>(out);
       SetObject(object, out);
-      sprite->fileName = spriteData.get<Type::FILE>();
+      sprite->fileName = spriteData.get<Type::FILE>().c_str();
       spriteCtor->pos = spriteData.get<Type::POSITION>();
       spriteCtor->scale = spriteData.get<Type::SCALE2D>();
-      object.constructData = static_cast<void*>(spriteCtor);
+      object.constructData = spriteCtor;
 
       object.data = sprite;
-      AddSceneObject(object, EntityType::SPRITE, data);
+      AddSceneObject(std::move(object), EntityType::SPRITE, data);
       return true;
     }
 
     bool DeserializeTextBox(GlobalDeserializeData& data)
     {
-      // auto out = Deserialize(data);
-
       TextBox::Data* textBox;
       TextBox::ConstructData* ctorTextBox;
       auto out = Deserialize(data, textBox, ctorTextBox);
       if (!std::get<1>(out))
       {
-        Logger::LogErr("[Deserialize] Invalid TextBox at line " + std::to_string(data.lineNumber) + ": " +
-                       data.line);
+        Logger::LogErr(String("[Deserialize] Invalid TextBox at line ") + String::ToString(data.lineNumber) + ": " +
+                       data.line.c_str());
         return false;
       }
 
       SceneObject::Data object;
-      auto textBoxData = std::get<0>(out);
+      // const auto& textBoxData = std::get<0>(out);
       SetObject(object, out);
       object.data = textBox;
       object.constructData = ctorTextBox;
-      AddSceneObject(object, EntityType::TEXTBOX, data);
+      AddSceneObject(std::move(object), EntityType::TEXTBOX, data);
       return true;
     }
 
@@ -87,14 +83,14 @@ namespace Temp::LevelSerializer
       auto out = Deserialize(data);
       if (!std::get<1>(out))
       {
-        Logger::LogErr("[Deserialize] Invalid TextButton at line " + std::to_string(data.lineNumber) + ": " +
-                       data.line);
+        Logger::LogErr(String("[Deserialize] Invalid TextButton at line ") + String::ToString(data.lineNumber) + ": " +
+                       data.line.c_str());
         return false;
       }
       SceneObject::Data object;
-      auto* textButton = new TextButton::Data();
-      auto* textButtonCtor = new TextButton::ConstructData();
-      auto textButtonData = std::get<0>(out);
+      auto* textButton = MemoryManager::CreateScene<TextButton::Data>();
+      auto* textButtonCtor = MemoryManager::CreateScene<TextButton::ConstructData>();
+      const auto& textButtonData = std::get<0>(out);
       SetObject(object, out);
       textButton->textBox = textButtonData.get<Type::TEXTBOX>();
       textButtonCtor->hoverable = textButtonData.get<Type::HOVERABLE>();
@@ -102,7 +98,7 @@ namespace Temp::LevelSerializer
       object.constructData = static_cast<void*>(textButtonCtor);
 
       object.data = textButton;
-      AddSceneObject(object, EntityType::TEXTBUTTON, data);
+      AddSceneObject(std::move(object), EntityType::TEXTBUTTON, data);
       return true;
     }
 
@@ -195,40 +191,45 @@ namespace Temp::LevelSerializer
     }
   }
 
-  bool Deserialize(Scene::Data& scene, const std::string& file)
+  bool Deserialize(Scene::Data& scene, const char* file)
   {
+    StringHashMap<int> DeserializeTable;
+    DeserializeTable["TextBox"] = EntityType::TEXTBOX;
+    DeserializeTable["TextButton"] = EntityType::TEXTBUTTON;
+    DeserializeTable["Sprite"] = EntityType::SPRITE;
+    DeserializeTable["Max"] = EntityType::MAX;
+
     int lineNumber = 0;
-    scene.objects.clear();
-    scene.objectsNameIdxTable.clear();
+    scene.objects.Clear();
+    scene.objectsNameIdxTable.Clear();
     auto path = AssetsDirectory() / "Levels" / file;
-    std::string contents;
+    String contents;
     try
     {
-      ReadFile(contents, path.string());
+      ReadFile(contents, path.c_str());
     }
     catch (const std::exception&)
     {
-      Logger::LogErr("[Deserialize] Failed to deserialize file: " + file);
+      Logger::LogErr(String("[Deserialize] Failed to deserialize file: ") + file);
       return false;
     }
 
-    std::istringstream f(contents);
-    std::string line;
-    line.reserve(4096);
-    GlobalDeserializeData data{scene, f, line, lineNumber};
-    while (GetLine(f, line, lineNumber))
+    char* l = contents.Buffer();
+    String line;
+    line.Resize(4096);
+    GlobalDeserializeData data{scene, l, line, lineNumber};
+    while (GetLine(data.line, data.l, lineNumber))
     {
-      data.line = Trim(data.line);
       // std::cout << line << std::endl;
-      if (IgnoreLine(line))
+      if (IgnoreLine(data.line))
       {
         continue;
       }
-      if (DeserializeTable.find(line) == DeserializeTable.end())
+      if (DeserializeTable.Find(data.line.c_str()) == SIZE_MAX)
       {
         if (!ExtensionDeserializer(data))
         {
-          Logger::LogErr("[Deserialize] Invalid object name at line " + std::to_string(lineNumber) + ": " + line);
+          Logger::LogErr(String("[Deserialize] Invalid object name at line ") + String::ToString(lineNumber) + ": " + data.line.c_str());
           return false;
         }
         else
@@ -236,7 +237,7 @@ namespace Temp::LevelSerializer
           continue;
         }
       }
-      switch (DeserializeTable.at(line))
+      switch (DeserializeTable[data.line.c_str()])
       {
         case EntityType::TEXTBOX:
           if (!DeserializeTextBox(data))
@@ -263,11 +264,11 @@ namespace Temp::LevelSerializer
     return true;
   }
 
-  void Serialize(Scene::Data& scene, const std::string& file)
+  void Serialize(Scene::Data& scene, const char* file)
   {
     std::ofstream f(file);
     GlobalSerializeData data{scene, f};
-    f << "// " << scene.sceneFns.name << ".level\n";
+    f << "// " << scene.sceneFns->name << ".level\n";
     for (const auto& object : scene.objects)
     {
       f << "\n";
@@ -289,17 +290,17 @@ namespace Temp::LevelSerializer
     }
   }
 
-  bool LevelExists(const std::string& file)
+  bool LevelExists(const char* file)
   {
     auto path = AssetsDirectory() / "Levels" / file;
-    std::string contents;
+    String contents;
     try
     {
-      ReadFile(contents, path.string());
+      ReadFile(contents, path.c_str());
     }
     catch (const std::exception&)
     {
-      Logger::LogErr("[Deserialize] Failed to deserialize file: " + file);
+      Logger::LogErr(String("[Deserialize] Failed to deserialize file: ") + file);
       return false;
     }
     return true;

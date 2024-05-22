@@ -4,8 +4,6 @@
 #pragma once
 
 #include "Input.hpp"
-#include <array>
-#include <thread>
 
 namespace Temp
 {

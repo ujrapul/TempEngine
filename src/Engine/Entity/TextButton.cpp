@@ -30,17 +30,6 @@ namespace Temp::TextButton
       Component::Drawable::SetTranslate(drawable, {x, y, 0});
     }
 #endif
-
-    void LuaExec(lua_State* L, float deltaTime)
-    {
-      static std::atomic<float> time = 0;
-      time = time.load() + deltaTime;
-      if (time > 1.f)
-      {
-        Component::Luable::ExecFunction("myluafunction", L);
-        time = 0;
-      }
-    }
   }
 
   void Construct(Scene::Data& scene, Data& textButton, ConstructData& ctorData, Entity::id entity)
@@ -54,12 +43,6 @@ namespace Temp::TextButton
     ctorData.hoverable.Drag = Drag;
 #endif
     Scene::AddComponent<Component::Type::HOVERABLE>(scene, textButton.entity, ctorData.hoverable);
-    Scene::AddComponent<Component::Type::LUABLE>(scene,
-                                                 textButton.entity,
-                                                 {
-                                                   .path = "Test.lua",
-                                                   .luaExec = LuaExec,
-                                                 });
 
     TextBox::Construct(scene, textButton.textBox, ctorData.textBoxCtorData, entity);
     SetHoverableCallbacks(scene, textButton);
@@ -83,7 +66,7 @@ namespace Temp::TextButton
 #endif
   }
 
-  void UpdateText(Scene::Data& scene, Data& textButton, const std::string& newText)
+  void UpdateText(Scene::Data& scene, Data& textButton, const char* newText)
   {
     TextBox::UpdateText(scene, textButton.textBox, newText);
 #ifdef EDITOR

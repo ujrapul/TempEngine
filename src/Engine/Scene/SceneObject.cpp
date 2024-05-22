@@ -4,14 +4,14 @@
 #include "SceneObject.hpp"
 #include "Component.hpp"
 #include "ComponentType.hpp"
+#include "Drawable.hpp"
 #include "Entity.hpp"
 #include "Hoverable.hpp"
+#include "MemoryManager.hpp"
 #include "Scene.hpp"
 #include "Updateable.hpp"
 
 #include "GameEntityType.hpp"
-
-#include <type_traits>
 
 namespace Temp::SceneObject
 {
@@ -19,9 +19,6 @@ namespace Temp::SceneObject
   {
     struct Cache
     {
-      Component::Hoverable::Data hoverable;
-      Component::Updateable::Data updateable;
-      Component::Drawable::Data drawable;
       ComponentBits componentBits;
     };
 
@@ -60,12 +57,19 @@ namespace Temp::SceneObject
       };
       FnTable[FnType::DRAWDESTRUCT][type] = [](auto& scene, auto& object) {
         DrawDestruct(scene, *static_cast<T*>(object.data));
+        if (Test(Scene::ComponentBits(scene, object.entity), Component::Type::DRAWABLE))
+        {
+          auto& drawable = Scene::Get<Component::Type::DRAWABLE>(scene, object.entity);
+          Component::Drawable::Destruct(drawable);
+        }
       };
       FnTable[FnType::DESTRUCT][type] = [](auto& scene, auto& object) {
         InternalDestructUpdate(object);
         Destruct(scene, *static_cast<T*>(object.data));
-        delete static_cast<T*>(object.data);
-        delete static_cast<C*>(object.constructData);
+        // Freeing twice for both data and constructData
+        // Store prevOffset if we ever try to use this like a stack
+        MemoryManager::data.Free(object.allocationType, 0);
+        MemoryManager::data.Free(object.allocationType, 0);
       };
 #ifdef EDITOR
       CopyTable[type] = [](Data& object) -> Data { return Copy<type>(object); };
@@ -100,22 +104,15 @@ namespace Temp::SceneObject
       ComponentBits componentBits = activeDataCache[object.entity].componentBits;
       if (Test(componentBits, Component::Type::HOVERABLE))
       {
-        Scene::AddComponent<Component::Type::HOVERABLE>(scene,
-                                                         object.entity,
-                                                         activeDataCache[object.entity].hoverable);
+        Scene::RemoveCacheComponent<Component::Type::HOVERABLE>(scene, object.entity);
       }
       if (Test(componentBits, Component::Type::UPDATEABLE))
       {
-        Scene::AddComponent<Component::Type::UPDATEABLE>(
-          scene,
-          object.entity,
-          activeDataCache[object.entity].updateable);
+        Scene::RemoveCacheComponent<Component::Type::UPDATEABLE>(scene, object.entity);
       }
       if (Test(componentBits, Component::Type::DRAWABLE))
       {
-        Scene::AddComponent<Component::Type::DRAWABLE>(scene,
-                                                        object.entity,
-                                                        activeDataCache[object.entity].drawable);
+        Scene::RemoveCacheComponent<Component::Type::DRAWABLE>(scene, object.entity);
       }
       activeDataCache.erase(object.entity);
     }
@@ -123,28 +120,19 @@ namespace Temp::SceneObject
     {
       ComponentBits componentBits = Scene::ComponentBits(scene, object.entity);
       activeDataCache[object.entity] = {
-        .hoverable = Test(componentBits, Component::Type::HOVERABLE)
-                       ? Scene::Get<Component::Type::HOVERABLE>(scene, object.entity)
-                       : Component::Hoverable::Data{},
-        .updateable = Test(componentBits, Component::Type::UPDATEABLE)
-                        ? Scene::Get<Component::Type::UPDATEABLE>(scene, object.entity)
-                        : Component::Updateable::Data{},
-        .drawable = Test(componentBits, Component::Type::DRAWABLE)
-                      ? Scene::Get<Component::Type::DRAWABLE>(scene, object.entity)
-                      : Component::Drawable::Data{},
         .componentBits = componentBits,
       };
       if (Test(componentBits, Component::Type::HOVERABLE))
       {
-        Scene::RemoveComponent<Component::Type::HOVERABLE>(scene, object.entity);
+        Scene::AddCacheComponent<Component::Type::HOVERABLE>(scene, object.entity);
       }
       if (Test(componentBits, Component::Type::UPDATEABLE))
       {
-        Scene::RemoveComponent<Component::Type::UPDATEABLE>(scene, object.entity);
+        Scene::AddCacheComponent<Component::Type::UPDATEABLE>(scene, object.entity);
       }
       if (Test(componentBits, Component::Type::DRAWABLE))
       {
-        Scene::RemoveComponent<Component::Type::DRAWABLE>(scene, object.entity);
+        Scene::AddCacheComponent<Component::Type::DRAWABLE>(scene, object.entity);
       }
     }
   }

@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <filesystem>
-#include <vector>
+#include "STDPCH.hpp"
+#include "String.hpp"
 
 namespace Temp::Render
 {
@@ -31,12 +31,13 @@ namespace Temp::Render
 #endif
       TEXT,
       SPRITE,
+      //PARTICLE,
       MAX
     };
   }
 
-  const std::vector<const char*>& ShaderFiles();
+  const GlobalDynamicArray<const char*>& ShaderFiles();
   const std::filesystem::path& GetShadersPath();
-  const std::vector<std::string>& GlobalShaderFiles();
-  std::vector<std::filesystem::file_time_type>& GlobalShaderFilesTimes();
+  ThreadedDynamicArray<ThreadedString> GlobalShaderFiles();
+  GlobalDynamicArray<std::filesystem::file_time_type>& GlobalShaderFilesTimes();
 }

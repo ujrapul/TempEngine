@@ -21,9 +21,6 @@
 
 #include "GameEditor.hpp"
 
-#include <iostream>
-#include <string_view>
-
 namespace Temp::Editor
 {
   namespace
@@ -38,8 +35,8 @@ namespace Temp::Editor
     void PropertiesName(Scene::Data& scene, SceneObject::Data& selectedObject)
     {
       char name[4096];
-      selectedObject.name.copy(name, selectedObject.name.size());
-      name[selectedObject.name.size()] = '\0';
+      strcpy(name, selectedObject.name.buffer);
+      name[selectedObject.name.size] = '\0';
 
       ImGui::InputText("Name", name, 4096, ImGuiInputTextFlags_None);
       if (Scene::ValidateObjectName(scene, name))
@@ -51,18 +48,18 @@ namespace Temp::Editor
     void PropertiesFile(Scene::Data& scene, SceneObject::Data& selectedObject)
     {
       char file[4096];
-      std::string_view fileStr;
+      String fileStr;
       switch (selectedObject.type)
       {
         case EntityType::SPRITE:
         {
-          fileStr = static_cast<Sprite::Data*>(selectedObject.data)->fileName;
+          fileStr = static_cast<Sprite::Data*>(selectedObject.data)->fileName.c_str();
         }
         default:
           break;
       };
-      fileStr.copy(file, fileStr.size());
-      file[fileStr.size()] = '\0';
+      strcpy(file, fileStr.c_str());
+      file[fileStr.size] = '\0';
 
       if (ImGui::InputText("File", file, 4096, ImGuiInputTextFlags_EnterReturnsTrue))
       {
@@ -81,21 +78,21 @@ namespace Temp::Editor
     void PropertiesShader(Scene::Data& scene, SceneObject::Data& selectedObject)
     {
       char shader[4096];
-      std::string_view shaderFile(selectedObject.shaderType == -1
-                                    ? "[DEFAULT]"
-                                    : Render::ShaderFiles()[selectedObject.shaderType]);
-      shaderFile.copy(shader, shaderFile.size());
-      shader[shaderFile.size()] = '\0';
-      std::string originalShader(shader);
+      String shaderFile(selectedObject.shaderType == -1
+                          ? "[DEFAULT]"
+                          : Render::ShaderFiles()[selectedObject.shaderType]);
+      strcpy(shader, shaderFile.c_str());
+      shader[shaderFile.size] = '\0';
+      String originalShader(shader);
 
       if (ImGui::InputText("Shader", shader, 4096, ImGuiInputTextFlags_EnterReturnsTrue))
       {
-        std::string_view shaderStr(shader);
+        String shaderStr(shader);
         if (originalShader != shaderStr)
         {
           selectedObject.shaderType = -1;
           DestructDrawable(scene, selectedObject);
-          for (size_t i = 0; i < Render::ShaderFiles().size(); ++i)
+          for (size_t i = 0; i < Render::ShaderFiles().size; ++i)
           {
             if (shaderStr == Render::ShaderFiles()[i])
             {
@@ -125,11 +122,10 @@ namespace Temp::Editor
     void PropertiesText(TextBox::Data& textBox)
     {
       char text[4096];
-      textBox.text.copy(text, textBox.text.size());
-      text[textBox.text.size()] = '\0';
+      strcpy(text, textBox.text.c_str());
 
       ImGui::InputText("Text", text, 4096, ImGuiInputTextFlags_None);
-      textBox.text = text;
+      textBox.text.Replace(text);
     }
 
     void PropertiesScale(Scene::Data& scene, SceneObject::Data& selectedObject)
@@ -276,7 +272,7 @@ namespace Temp::Editor
       {
         ImGui::Spacing();
         ImGui::Text("%s",
-                    std::string("Successfully saved " + scene.sceneFns.name + ".level").c_str());
+                    std::string("Successfully saved " + std::string(scene.sceneFns->name.c_str()) + ".level").c_str());
         saveSucceededTime += Global::DeltaTime();
         if (saveSucceededTime > 2.f)
         {
@@ -288,7 +284,7 @@ namespace Temp::Editor
       {
         ImGui::Spacing();
         ImGui::Text("%s",
-                    std::string("Successfully loaded " + scene.sceneFns.name + ".level").c_str());
+                    std::string("Successfully loaded " + std::string(scene.sceneFns->name.c_str()) + ".level").c_str());
         loadSucceededTime += Global::DeltaTime();
         if (loadSucceededTime > 2.f)
         {
@@ -301,22 +297,22 @@ namespace Temp::Editor
       {
         loadSucceeded = false;
         loadSucceededTime = 0;
-        scene.sceneFns.name = saveText.data();
+        scene.sceneFns->name = saveText.data();
         LevelSerializer::Serialize(
           scene,
-          (AssetsDirectory() / "Levels" / (scene.sceneFns.name + ".level")).string());
+          (AssetsDirectory() / "Levels" / (String(scene.sceneFns->name.c_str()) + ".level").c_str()).c_str());
         saveSucceeded = true;
       }
       else if (load)
       {
-        scene.sceneFns.name = loadText.data();
-        if (LevelSerializer::LevelExists(scene.sceneFns.name + ".level"))
+        scene.sceneFns->name = loadText.data();
+        if (LevelSerializer::LevelExists((String(scene.sceneFns->name.c_str()) + ".level").c_str()))
         {
           EventData.draggable = nullptr;
           EventData.selectedObject = nullptr;
           Scene::DrawDestruct(scene);
           Scene::Destruct(scene);
-          if (LevelSerializer::Deserialize(scene, scene.sceneFns.name + ".level"))
+          if (LevelSerializer::Deserialize(scene, (String(scene.sceneFns->name.c_str()) + ".level").c_str()))
           {
             Scene::Construct(scene);
             Scene::DrawConstruct(scene);
@@ -342,6 +338,7 @@ namespace Temp::Editor
         textBox,
         ctorData,
         "TextObject",
+        {},
         EntityType::TEXTBOX,
       };
       Global::SpawnObject(object);
@@ -365,6 +362,7 @@ namespace Temp::Editor
         textButton,
         ctorData,
         "TextButtonObject",
+        {},
         EntityType::TEXTBUTTON,
       };
       Global::SpawnObject(object);
@@ -386,6 +384,7 @@ namespace Temp::Editor
         sprite,
         ctorData,
         "SpriteObject",
+        {},
         EntityType::SPRITE,
       };
       Global::SpawnObject(object);
@@ -411,7 +410,7 @@ namespace Temp::Editor
         {
           auto* textBox = static_cast<TextBox::Data*>(EventData.selectedObject->data);
           PropertiesText(*textBox);
-          TextBox::UpdateText(scene, *textBox, textBox->text);
+          TextBox::UpdateText(scene, *textBox, textBox->text.c_str());
           PropertiesTextBox(scene, *textBox);
           PropertiesFont(scene, *textBox);
         }
@@ -420,7 +419,7 @@ namespace Temp::Editor
         {
           auto* textButton = static_cast<TextButton::Data*>(EventData.selectedObject->data);
           PropertiesText(textButton->textBox);
-          TextButton::UpdateText(scene, *textButton, textButton->textBox.text);
+          TextButton::UpdateText(scene, *textButton, textButton->textBox.text.c_str());
           PropertiesTextBox(scene, textButton->textBox);
           PropertiesFont(scene, textButton->textBox);
         }

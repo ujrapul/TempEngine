@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Drawable.hpp"
+#include "Array_fwd.hpp"
 #include "Engine.hpp"
 #include "EntityType.hpp"
 #include "OpenGLWrapper.hpp"
@@ -9,7 +10,7 @@
 #include "TextBox.hpp"
 
 #include "GameDrawable.hpp"
-#include <cstddef>
+#include <climits>
 
 namespace Temp::Component::Drawable
 {
@@ -18,7 +19,7 @@ namespace Temp::Component::Drawable
     void Construct(Data& drawable,
                    int shaderIdx,
                    int bufferDraw,
-                   const std::vector<int>& numOfElements,
+                   const DynamicArray<int>& numOfElements,
                    int vertexStride,
                    int UBO,
                    const char* UBOMatrices,
@@ -28,16 +29,35 @@ namespace Temp::Component::Drawable
 
       assert(drawable.entity < Entity::MAX && "Drawable Entity::id not set!");
 
-      drawable.shaderProgram = OpenGLWrapper::CreateShaderProgram(shaderIdx);
-      drawable.VAO = OpenGLWrapper::CreateVAO();
-      drawable.VBO = OpenGLWrapper::CreateVBO(drawable.vertices.data(),
-                                              drawable.vertices.size(),
-                                              bufferDraw);
-      drawable.EBO = OpenGLWrapper::CreateEBO(drawable.indices.data(),
-                                              drawable.indices.size(),
-                                              bufferDraw);
-      drawable.indicesSize = (int)drawable.indices.size();
-      for (size_t i = 0; i < numOfElements.size(); ++i)
+      drawable.shaderProgram = OpenGLWrapper::GetShaderProgram(shaderIdx);
+      if (OpenGLWrapper::globalFreeGLObjects.size > 0)
+      {
+        auto GLObject = OpenGLWrapper::globalFreeGLObjects.back();
+        OpenGLWrapper::globalFreeGLObjects.PopBack();
+        drawable.VAO = GLObject.VAO;
+        drawable.VBO = GLObject.VBO;
+        drawable.EBO = GLObject.EBO;
+        OpenGLWrapper::UpdateVBO(drawable.VBO,
+                                 drawable.vertices.buffer,
+                                 drawable.vertices.size,
+                                 bufferDraw);
+        OpenGLWrapper::UpdateEBO(drawable.EBO,
+                                 drawable.indices.buffer,
+                                 drawable.indices.size,
+                                 bufferDraw);
+      }
+      else
+      {
+        drawable.VAO = OpenGLWrapper::CreateVAO();
+        drawable.VBO = OpenGLWrapper::CreateVBO(drawable.vertices.buffer,
+                                                drawable.vertices.size,
+                                                bufferDraw);
+        drawable.EBO = OpenGLWrapper::CreateEBO(drawable.indices.buffer,
+                                                drawable.indices.size,
+                                                bufferDraw);
+      }
+      drawable.indicesSize = (int)drawable.indices.size;
+      for (size_t i = 0; i < numOfElements.size; ++i)
       {
         OpenGLWrapper::SetVertexAttribArray(i,
                                             numOfElements[i],
@@ -56,18 +76,28 @@ namespace Temp::Component::Drawable
       OpenGLWrapper::Set1IntShaderProperty(drawable.shaderProgram,
                                            "u_numIndices",
                                            drawable.indicesSize);
-
-      FreeContainer(drawable.vertices);
-      FreeContainer(drawable.indices);
     }
 
     template <typename T>
-    void CreateBuffer(Data& drawable, std::vector<T>& data)
+    void CreateBuffer(Data& drawable, DynamicArray<T>& data)
     {
       using namespace Temp::Render::OpenGLWrapper;
-      drawable.buffers.push_back(CreateVBO(data.data(), sizeof(T), data.size(), GL_STATIC_DRAW));
+      drawable.buffers.PushBack(CreateVBO(data.buffer, sizeof(T), data.size, GL_STATIC_DRAW));
+    }
+
+    void MoveFloatBuffer(GLuint buffer, const DynamicArray<float, MemoryManager::Data::SCENE_ARENA>& data, int BufferDraw)
+    {
+      using namespace Temp::Render::OpenGLWrapper;
+      UpdateVBO(buffer, data.buffer, data.size, sizeof(float), BufferDraw);
+    }
+
+    void MoveIndexBuffer(GLuint buffer, const DynamicArray<unsigned int, MemoryManager::Data::SCENE_ARENA>& data, int BufferDraw)
+    {
+      using namespace Temp::Render::OpenGLWrapper;
+      UpdateEBO(buffer, data.buffer, data.size, BufferDraw);
     }
   }
+
   void Update(Data& drawable)
   {
     using namespace Temp::Render;
@@ -77,17 +107,31 @@ namespace Temp::Component::Drawable
                                               &drawable.model.rows[0][0]);
   }
 
+  void Scale(Data& drawable, const Math::Vec3f& scale)
+  {
+    drawable.model = drawable.model.scale(scale);
+  }
+
+  void SetScale(Data& drawable, const Math::Vec3f& scale)
+  {
+    drawable.model.setScale(scale);
+  }
+
+  void Translate(Data& drawable, const Math::Vec3f& translate)
+  {
+    drawable.model = drawable.model.translate(translate);
+  }
+
   void SetTranslate(Data& drawable, const Math::Vec3f& translate)
   {
     drawable.model.setTranslation(translate + drawable.offset);
-    drawable.updateModel = true;
   }
 
   // Make sure all API construction happens before render-thread executes!
   void Construct(Data& drawable,
                  int shaderIdx,
                  int bufferDraw,
-                 const std::vector<int>& numOfElements,
+                 const DynamicArray<int>& numOfElements,
                  int vertexStride,
                  int UBO)
   {
@@ -102,7 +146,7 @@ namespace Temp::Component::Drawable
   void ConstructFont(Data& drawable,
                      int shaderIdx,
                      int bufferDraw,
-                     const std::vector<int>& numOfElements,
+                     const DynamicArray<int>& numOfElements,
                      int vertexStride,
                      int UBO)
   {
@@ -114,15 +158,9 @@ namespace Temp::Component::Drawable
     Construct(drawable, shaderIdx, bufferDraw, numOfElements, vertexStride, UBO, "FontMatrices", 1);
   }
 
-  void Draw(Data& drawable, int polyMode)
+  void Draw(Scene::Data& scene, SceneObject::Data& object, Data& drawable, int polyMode)
   {
     using namespace Temp::Render;
-
-    if (drawable.updateModel)
-    {
-      Update(drawable);
-      drawable.updateModel = false;
-    }
 
     if (!drawable.visible)
     {
@@ -133,6 +171,8 @@ namespace Temp::Component::Drawable
     glUseProgram(drawable.shaderProgram);
     OpenGLWrapper::BindTexture(GL_TEXTURE0, drawable.texture);
     OpenGLWrapper::Set1FloatShaderProperty(drawable.shaderProgram, "u_time", Global::Time());
+    DrawUpdate(scene, object, drawable);
+    Update(drawable);
 
     // Bind the VAO and draw the triangle
     switch (drawable.numInstances)
@@ -169,11 +209,13 @@ namespace Temp::Component::Drawable
     ExtensionDrawUpdate(scene, object, drawable);
   }
 
-  void UpdateData(Data& drawable, std::vector<float> vertices, std::vector<unsigned int> indices)
+  void UpdateData(Data& drawable)
   {
-    drawable.vertices = std::move(vertices);
-    drawable.indices = std::move(indices);
-    drawable.indicesSize = (int)drawable.indices.size();
+    drawable.indicesSize = (int)drawable.indices.size;
+    if (drawable.shaderProgram == UINT_MAX)
+    {
+      return;
+    }
     Render::OpenGLWrapper::Set1IntShaderProperty(drawable.shaderProgram,
                                                  "u_numIndices",
                                                  drawable.indicesSize);
@@ -189,33 +231,31 @@ namespace Temp::Component::Drawable
     {
       CleanArrayBuffer(buffer);
     }
-    CleanElementBuffer(drawable.EBO);
-    CleanArrayBuffer(drawable.VBO);
-    CleanArrays(drawable.VAO);
-    CleanShader(drawable.shaderProgram);
+    // CleanElementBuffer(drawable.EBO);
+    // CleanArrayBuffer(drawable.VBO);
+    // CleanArrays(drawable.VAO);
+
+    // CACHE SHADERS SO THAT WE DON'T KEEP ALLOCATING NEW BUFFERS
+    globalFreeGLObjects.PushBack({drawable.VAO, drawable.VBO, drawable.EBO});
+    // DONT CLEAN SHADERS THEY WILL EXIST FOR THE ENTIRE PROGRAM
+    // CleanShader(drawable.shaderProgram);
     UnbindBuffers();
-
-    FreeContainer(drawable.buffers);
-    FreeContainer(drawable.vertices);
-    FreeContainer(drawable.indices);
   }
 
-  void UpdateFloatBuffer(GLuint buffer, std::vector<float> data, int BufferDraw)
+  void UpdateFloatBuffer(GLuint buffer, DynamicArray<float>& data, int BufferDraw)
   {
     using namespace Temp::Render::OpenGLWrapper;
-    UpdateVBO(buffer, data.data(), data.size(), BufferDraw);
-    FreeContainer(data);
+    UpdateVBO(buffer, data.buffer, data.size, BufferDraw);
   }
 
-  void UpdateIndexBuffer(GLuint buffer, std::vector<unsigned int> data, int BufferDraw)
+  void UpdateIndexBuffer(GLuint buffer, DynamicArray<unsigned int>& data, int BufferDraw)
   {
     using namespace Temp::Render::OpenGLWrapper;
-    UpdateEBO(buffer, data.data(), data.size(), BufferDraw);
-    FreeContainer(data);
+    UpdateEBO(buffer, data.buffer, data.size, BufferDraw);
   }
 
   GLuint CreateFloatBuffer(Data& drawable,
-                           std::vector<float>& data,
+                           DynamicArray<float>& data,
                            int arrayIndex,
                            int numOfElements,
                            int stride,
@@ -228,7 +268,7 @@ namespace Temp::Component::Drawable
   }
 
   GLuint CreateIntBuffer(Data& drawable,
-                         std::vector<int>& data,
+                         DynamicArray<int>& data,
                          int arrayIndex,
                          int numOfElements,
                          int stride,
@@ -241,7 +281,7 @@ namespace Temp::Component::Drawable
   }
 
   GLuint CreateFloatInstancedBuffer(Data& drawable,
-                                    std::vector<float>& data,
+                                    DynamicArray<float>& data,
                                     int arrayIndex,
                                     int numOfElements,
                                     int stride,
@@ -254,7 +294,7 @@ namespace Temp::Component::Drawable
   }
 
   GLuint CreateIntInstancedBuffer(Data& drawable,
-                                  std::vector<int>& data,
+                                  DynamicArray<int>& data,
                                   int arrayIndex,
                                   int numOfElements,
                                   int stride,
@@ -268,11 +308,11 @@ namespace Temp::Component::Drawable
 
   void UpdateVertexIndexBuffers(Data& drawable, int BufferDraw)
   {
-    UpdateFloatBuffer(drawable.VBO, std::move(drawable.vertices), BufferDraw);
-    UpdateIndexBuffer(drawable.EBO, std::move(drawable.indices), BufferDraw);
+    MoveFloatBuffer(drawable.VBO, drawable.vertices, BufferDraw);
+    MoveIndexBuffer(drawable.EBO, drawable.indices, BufferDraw);
   }
 
-  Math::Vec4f ConvertToLocalSpace(Data& drawable, const Math::Vec4f worldCoords)
+  Math::Vec4f ConvertToLocalSpace(Data& drawable, Math::Vec4f worldCoords)
   {
     Math::Mat4 inverseModelMatrix = drawable.model.inverse();
     return inverseModelMatrix * worldCoords;

@@ -9,7 +9,6 @@
 #else
 #include "gl.h"
 #endif
-#include <unordered_map>
 
 namespace Temp::Font
 {
@@ -23,7 +22,7 @@ namespace Temp::Font
     };
   }
 
-  inline constexpr std::array<const char*, Type::MAX> Fonts{
+  inline constexpr const char* Fonts[Type::MAX] = {
     "Arimo",
     "SH-Pinscher",
   };
@@ -42,9 +41,11 @@ namespace Temp::Font
     float rectBottom{};
     uint32_t atlasWidth{};
     uint32_t atlasHeight{};
+
+    bool operator==(const Character& other) const = default;
   };
 
-  const std::unordered_map<char, Character>& Characters(int type);
+  const GlobalArray<Character, 128>& Characters(int type);
   void LoadFont();
 
   constexpr uint32_t Padding() { return 16; }

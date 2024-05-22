@@ -1,17 +1,19 @@
 // SPDX-FileCopyrightText: 2023 Ujwal Vujjini
 // SPDX-License-Identifier: MIT
 
+#include "Array_fwd.hpp"
 #include "EngineUtils.hpp"
 
 #include "GameShader.hpp"
+#include "String.hpp"
 
 namespace Temp::Render
 {
   namespace
   {
-    const std::vector<const char*>& InternalShaderFiles()
+    const GlobalDynamicArray<const char*>& InternalShaderFiles()
     {
-      static std::vector<const char*> out = {
+      static GlobalDynamicArray<const char*> out = {
 #ifdef EDITOR
         "EditorGrid.glsl",
         "Hoverable.glsl",
@@ -25,7 +27,7 @@ namespace Temp::Render
     }
   }
 
-  const std::vector<const char*>& ShaderFiles()
+  const GlobalDynamicArray<const char*>& ShaderFiles()
   {
     static const auto& out = InternalShaderFiles();
     return out;
@@ -37,19 +39,19 @@ namespace Temp::Render
     return shadersPath;
   }
 
-  const std::vector<std::string>& GlobalShaderFiles()
+  ThreadedDynamicArray<ThreadedString> GlobalShaderFiles()
   {
-    static std::vector<std::string> out = {(GetShadersPath() / "Common.glsl").string()};
+    ThreadedDynamicArray<ThreadedString> out{(GetShadersPath() / "Common.glsl").c_str()};
     return out;
   }
 
-  std::vector<std::filesystem::file_time_type>& GlobalShaderFilesTimes()
+  GlobalDynamicArray<std::filesystem::file_time_type>& GlobalShaderFilesTimes()
   {
-    static std::vector<std::filesystem::file_time_type> out;
+    static GlobalDynamicArray<std::filesystem::file_time_type> out;
     static bool first = true;
     if (first)
     {
-      out.resize(GlobalShaderFiles().size());
+      out.Resize(GlobalShaderFiles().size);
       first = false;
     }
     return out;

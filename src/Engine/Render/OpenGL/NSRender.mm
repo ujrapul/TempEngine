@@ -9,6 +9,7 @@
 #include "Event.hpp"
 #include "Input.hpp"
 #include "Editor.hpp"
+#include "STDPCH.hpp"
 
 #ifdef EDITOR
 #include "CommonRender.hpp"
@@ -21,7 +22,6 @@
 #import <OpenGL/OpenGL.h>
 #import <OpenGL/CGLContext.h>
 #import <Cocoa/Cocoa.h>
-#include <thread>
 
 using namespace Temp;
 

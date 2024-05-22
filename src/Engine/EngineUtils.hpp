@@ -3,15 +3,13 @@
 
 #pragma once
 
-#include "Math.hpp"
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <limits.h>
-#include <sstream>
-#include <string.h>
-#include <string>
-#include <vector>
+#include "Array_fwd.hpp"
+#include "Logger.hpp"
+#include "Math_fwd.hpp"
+#include "STDPCH.hpp"
+#include "String.hpp"
+#include <cstdint>
+#include <cstdio>
 #ifdef _WIN32
 #include <Windows.h>
 #else
@@ -57,35 +55,36 @@ namespace Temp
     p_container.swap(empty);
   }
 
-  inline void ReadFile(std::string& contents, const std::string& path)
+  inline void ReadFile(String& contents, const char* path)
   {
-    std::ifstream in(path, std::ios::in | std::ios::binary);
-    if (in)
+    FILE *fp = fopen(path, "rb");
+    if (!fp)
     {
-      in.seekg(0, std::ios::end);
-      contents.resize(in.tellg());
-      in.seekg(0, std::ios::beg);
-      in.read(&contents[0], contents.size());
-      in.close();
+      throw std::runtime_error((String("Failed to read file: ") + path).c_str());
     }
-    else
-    {
-      throw std::runtime_error("Failed to read file: " + path);
-    }
+    long length;
+    char* content;
+    fseek(fp, 0, SEEK_END);
+    length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    content = (char *)malloc(length + 1);
+    fread(content, 1, length, fp);
+    content[length] = '\0';
+    contents = content;
+    free(content);
   }
 
-  inline std::vector<std::string_view> SplitString(const std::string_view str,
-                                                   const char* delimiter,
-                                                   int split = 0)
+  inline DynamicArray<String> SplitString(const String& str, const char* delimiter, int split = 0)
   {
-    std::vector<std::string_view> tokens;
+    // Make sure enough memory is reserved up front so that there isn't a reallocation
+    DynamicArray<String> tokens{true, Math::Max(str.count(delimiter) * 2, 8ul)};
     std::size_t start = 0;
     std::size_t end = str.find(delimiter);
 
     int currSplit = 0;
-    while (end != std::string_view::npos)
+    while (end != SIZE_MAX)
     {
-      tokens.push_back(str.substr(start, end - start));
+      tokens.PushBack(str.substr(start, end));
       start = end + strlen(delimiter);
       end = str.find(delimiter, start);
       ++currSplit;
@@ -97,31 +96,56 @@ namespace Temp
 
     if (!str.substr(start).empty())
     {
-      tokens.push_back(str.substr(start));
+      tokens.PushBack(str.substr(start));
     }
 
     return tokens;
   }
 
-  constexpr std::string_view LTrim(std::string_view str,
-                                   std::string const& whitespace = " \r\n\t\v\f")
+  inline String& LTrim(String& str, const char* whitespace = " \r\n\t\v\f")
   {
     const auto pos(str.find_first_not_of(whitespace));
-    str.remove_prefix(Math::Min(pos, str.length()));
+    str.remove_prefix(Math::Min(pos, str.size));
     return str;
   }
 
-  constexpr std::string_view RTrim(std::string_view str,
-                                   std::string const& whitespace = " \r\n\t\v\f")
+  inline String& RTrim(String& str, const char* whitespace = " \r\n\t\v\f")
   {
     const auto pos(str.find_last_not_of(whitespace));
-    str.remove_suffix(Math::Min(str.length() - pos - 1, str.length()));
+    str.remove_suffix(Math::Min(str.size - pos - 1, str.size));
     return str;
   }
 
-  constexpr std::string_view Trim(std::string_view str,
-                                  std::string const& whitespace = " \r\n\t\v\f")
+  inline String& Trim(String& str, const char* whitespace = " \r\n\t\v\f")
   {
     return LTrim(RTrim(str, whitespace), whitespace);
   }
+
+  inline bool Contains(const SceneDynamicArray<SceneString>& container, const char* match)
+  {
+    for (size_t i = 0; i < container.size; ++i)
+    {
+      if (String(container[i].c_str()) == String(match))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  inline bool Contains(const GlobalDynamicArray<GlobalString>& container, const char* match)
+  {
+    for (size_t i = 0; i < container.size; ++i)
+    {
+      if (String(container[i].c_str()) == String(match))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void* OpenDynamicLibrary(const std::string& name);
+  void* GetDynamicLibraryFn(void* libraryHandle, const std::string& fn);
+  void CloseDynamicLibrary(void* libraryHandle);
 }

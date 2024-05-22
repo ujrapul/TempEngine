@@ -6,10 +6,6 @@
 #include "Input.hpp"
 #include "Math.hpp"
 #include "Scene.hpp"
-#include <functional>
-#include <vector>
-
-struct lua_State;
 
 namespace Temp::Coordinator
 {
@@ -26,20 +22,43 @@ namespace Temp::Engine
 
   struct Data
   {
-    std::vector<Scene::SceneFns> sceneFns{};
+    GlobalDynamicArray<Scene::SceneFns> sceneFns{};
     Input::Data inputData{};
     Scene::Data scene{};
     Math::Vec4f backgroundColor{0.2f, 0.2f, 0.2f, 1.0f};
     bool quit{false};
 
-    Data& operator=(const Data& other)
+    Data(){}
+
+    Data(Data& other)
+      : sceneFns(other.sceneFns),
+        inputData(other.inputData),
+        scene(other.scene),
+        backgroundColor(other.backgroundColor),
+        quit(other.quit)
     {
-      sceneFns = other.sceneFns;
-      inputData = other.inputData;
-      scene = other.scene;
-      backgroundColor = other.backgroundColor;
-      quit = other.quit;
+      // ignored
+    }
+
+    Data(Data&& other)
+      : Data()
+    {
+      Swap(*this, other);
+    }
+
+    Data& operator=(Data other)
+    {
+      Swap(*this, other);
       return *this;
+    }
+
+    constexpr void Swap(Data& first, Data& second)
+    {
+      Utils::Swap(first.sceneFns, second.sceneFns);
+      Utils::Swap(first.inputData, second.inputData);
+      Utils::Swap(first.scene, second.scene);
+      Utils::Swap(first.backgroundColor, second.backgroundColor);
+      Utils::Swap(first.quit, second.quit);
     }
   };
 }
@@ -57,7 +76,7 @@ namespace Temp
     static void Process(float _deltaTime);
     static void Run(const char* windowName, int windowX, int windowY);
     static void Destroy();
-    static void Construct(const Engine::Data& _engine);
+    static void Construct(Engine::Data _engine);
     static void Quit();
     static bool IsActive();
     static bool IsSpawning();
@@ -66,7 +85,7 @@ namespace Temp
     static float Time();
     
     // AUDIO
-    static void SetAudioPaths(const std::vector<std::string>& _audioPaths);
+    static void SetAudioPaths(const DynamicArray<GlobalString, MemoryManager::Data::GLOBAL_ARENA>& _audioPaths);
     static void PlayAudioLoop(int i, std::atomic<bool>& stopHandle);
     static void PlayAudio(int i);
     static void ChangeMasterVolume(float volume);
@@ -83,9 +102,10 @@ namespace Temp
     // SCENE
     // Make sure to use callbacks if you need to modify the object after spawning
     static void SpawnObject(
-      const SceneObject::Data& object,
-      std::function<void()> callback = []() {});
-    static void RemoveObject(const SceneObject::Data& object);
+      SceneObject::Data object,
+      void(*callback)(void*) = nullptr,
+      void* data = nullptr);
+    static void RemoveObject(Entity::id entity);
 
   private:
     static Engine::Data engine;

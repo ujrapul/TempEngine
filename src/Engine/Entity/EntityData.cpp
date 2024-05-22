@@ -3,25 +3,23 @@
 
 #include "EntityData.hpp"
 #include "ComponentContainer.hpp"
-#include "EngineUtils.hpp"
 #include "Entity.hpp"
 #include "Logger.hpp"
-#include <algorithm>
-#include <cassert>
-#include <string>
 
 namespace Temp::Entity
 {
   namespace
   {
+    Entity::id numEntities = 0;
+
     Entity::id GetAvailable(Data& entityData)
     {
       for (Entity::id i = 0; i < Entity::MAX; ++i)
       {
-        if (!entityData.created[i])
+        if (!entityData.used[i])
         {
-          entityData.created[i] = true;
-          entityData.used.push_back(i);
+          entityData.used[i] = true;
+          ++numEntities;
           return i;
         }
       }
@@ -30,15 +28,15 @@ namespace Temp::Entity
 
     void ResetAvailable(Data& entityData, Entity::id entity)
     {
-      entityData.created[entity] = false;
       entityData.componentBits[entity] = 0;
-      entityData.used.erase(std::find(entityData.used.begin(), entityData.used.end(), entity));
+      entityData.used[entity] = false;
+      --numEntities;
     }
 
 #ifdef DEBUG
-    void Check(Data& entityData, const std::string& err)
+    void Check(const String& err)
     {
-      if (entityData.used.size() >= Entity::MAX)
+      if (numEntities >= Entity::MAX)
       {
         Logger::LogErr(err);
       }
@@ -49,18 +47,20 @@ namespace Temp::Entity
   void Init(Data& entityData)
   {
     entityData = {};
+    entityData.used.Reserve(Entity::MAX);
+    entityData.componentBits.Reserve(Entity::MAX);
     Component::Container::Init(entityData.componentContainer);
   }
 
   void Destroy(Data& entityData, Entity::id entity)
   {
 #ifdef DEBUG
-    Check(entityData, "[Entity] Above limit: " + std::to_string(entity));
+    Check(String("[Entity] Above limit: ") + String::ToString(entity));
 #endif
     ResetAvailable(entityData, entity);
     Component::Container::EntityDestroyed(entityData.componentContainer, entity);
 #ifdef DEBUG
-    Check(entityData, "[Entity] Underflow: " + std::to_string(entity));
+    Check(String("[Entity] Underflow: ") + String::ToString(entity));
 #endif
   }
 
@@ -69,16 +69,19 @@ namespace Temp::Entity
   ::Temp::ComponentBits& ComponentBits(Data& entityData, Entity::id entity)
   {
 #ifdef DEBUG
-    Check(entityData, "[Entity] Above limit: " + std::to_string(entity));
+    Check(String("[Entity] Above limit: ") + String::ToString(entity));
 #endif
     return entityData.componentBits[entity];
   }
 
   void Destruct(Data& entityData)
   {
-    while (!entityData.used.empty())
+    for (size_t i = 0; i < entityData.used.size; ++i)
     {
-      Destroy(entityData, entityData.used.back());
+      if (entityData.used[i])
+      {
+        Destroy(entityData, i);
+      }
     }
     Component::Container::Destruct(entityData.componentContainer);
   }
@@ -90,5 +93,5 @@ namespace Temp::Entity
     Component::Container::Reset(entityData.componentContainer);
   }
 
-  size_t Count(Data& entityData) { return entityData.used.size(); }
+  size_t Count(Data& entityData) { return entityData.used.size; }
 }

@@ -36,7 +36,7 @@ namespace Temp::TextButton
   void Construct(Scene::Data& scene, Data& textButton, ConstructData& ctorData, Entity::id entity);
   void DrawConstruct(Scene::Data& scene, Data& textButton, int shaderType = Render::ShaderIdx::TEXT);
   void DrawUpdate(Scene::Data& scene, Component::Drawable::Data& drawable, Data& textButton);
-  void UpdateText(Scene::Data& scene, Data& textButton, const std::string& newText);
+  void UpdateText(Scene::Data& scene, Data& textButton, const char* newText);
 
   void DrawDestruct(Scene::Data& scene, Data& textButton);
   void Destruct(Scene::Data& scene, Data& textButton);

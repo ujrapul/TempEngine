@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 Ujwal Vujjini
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "Entity.hpp"
@@ -24,7 +27,7 @@ namespace Temp::Sprite
 
   struct Data
   {
-    std::string fileName{};
+    SceneString fileName{};
     Entity::id entity{};
   };
 

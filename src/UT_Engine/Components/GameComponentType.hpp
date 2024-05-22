@@ -5,7 +5,6 @@
 
 #include "ComponentType.hpp"
 #include "Null.hpp"
-#include <vector>
 
 namespace Temp
 {

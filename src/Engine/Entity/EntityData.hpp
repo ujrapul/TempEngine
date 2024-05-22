@@ -7,8 +7,7 @@
 #include "ComponentContainer.hpp"
 #include "ComponentType.hpp"
 #include "Entity.hpp"
-#include <array>
-#include <queue>
+#include "MemoryManager.hpp"
 
 namespace Temp
 {
@@ -16,9 +15,10 @@ namespace Temp
   {
     struct Data
     {
-      std::vector<Entity::id> used{};
-      std::array<bool, Entity::MAX> created{};
-      std::array<::Temp::ComponentBits, Entity::MAX> componentBits{};
+      // Using dynamic array so it isn't initialized on construction
+      // Should be used as a regular array here!
+      SceneDynamicArray<bool> used{};
+      SceneDynamicArray<::Temp::ComponentBits> componentBits{};
       Component::Container::Data componentContainer;
     };
 
@@ -33,10 +33,10 @@ namespace Temp
     template <uint8_t T>
     constexpr void AddComponent(Data& data,
                                 Entity::id entity,
-                                const Component::MapToComponentDataType<T>& component)
+                                Component::MapToComponentDataType<T> component)
     {
       SetBit(Entity::ComponentBits(data, entity), T);
-      Component::Container::Set<T>(data.componentContainer, entity, component);
+      Component::Container::Set<T>(data.componentContainer, entity, std::move(component));
     }
 
     template <uint8_t T>
@@ -44,6 +44,21 @@ namespace Temp
     {
       ClearBit(Entity::ComponentBits(data, entity), T);
       Component::Container::Remove<T>(data.componentContainer, entity);
+    }
+
+    template <uint8_t T>
+    constexpr void AddCacheComponent(Data& data, Entity::id entity)
+    {
+      Component::Container::SetCache<T>(data.componentContainer, entity);
+      RemoveComponent<T>(data, entity);
+    }
+
+    template <uint8_t T>
+    constexpr void RemoveCacheComponent(Data& data, Entity::id entity)
+    {
+      AddComponent<T>(data,
+                      entity,
+                      Component::Container::GetCache<T>(data.componentContainer, entity));
     }
 
     template <uint8_t T>

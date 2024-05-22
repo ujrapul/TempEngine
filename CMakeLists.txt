@@ -28,13 +28,31 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 if (MSVC)
   add_compile_definitions(
     $<$<CXX_COMPILER_ID:MSVC>:"$<$<CONFIG:DEBUG>:DEBUG>">
-    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:"$<$<CONFIG:DEBUG>:-DDEBUG>">)
+    $<$<CXX_COMPILER_ID:MSVC>:"$<$<CONFIG:RELEASE>:RELEASE>">
+    $<$<CXX_COMPILER_ID:MSVC>:"$<$<CONFIG:RELWITHDEBINFO>:DRELEASE>">
+    
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:"$<$<CONFIG:DEBUG>:-DDEBUG>">
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:"$<$<CONFIG:RELEASE>:-DRELEASE>">
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:"$<$<CONFIG:RELWITHDEBINFO>:-DRELEASE>">
+  )
 else()
-  add_compile_definitions("$<$<CONFIG:DEBUG>:-DDEBUG>")
+  add_compile_definitions(
+    "$<$<CONFIG:DEBUG>:-DDEBUG>"
+    "$<$<CONFIG:RELEASE>:-DRELEASE>"
+    "$<$<CONFIG:RELWITHDEBINFO>:-DRELEASE>"
+  )
 endif()
 
 if (UNIX AND NOT APPLE)
   set(LINUX TRUE)
+endif()
+
+if (LINUX)
+  execute_process(COMMAND ${CMAKE_C_COMPILER} -fuse-ld=gold -Wl,--version ERROR_QUIET OUTPUT_VARIABLE ld_version)
+  if ("${ld_version}" MATCHES "GNU gold")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold -Wl,--disable-new-dtags")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=gold -Wl,--disable-new-dtags")
+  endif()
 endif()
 
 # Find the OpenGL package
@@ -61,10 +79,23 @@ else()
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  # set(CMAKE_UNITY_BUILD ON)
   if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
   else ()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
+  endif()
+elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  if (UNIX)
+    # Needed for hiding GNU_UNIQUE_OBJECT symbols which were causing issues with unloading shared libraries
+    # Perhaps there's a clash between the symbols in the executable and the ones in the shared library since
+    # they both compile with the same engine source code.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fpic -Wl,-no-gnu-unique -O0")
+    # Use -fno-implicit-templates to check templates being instantiated
+    # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fpic -Wl,-no-gnu-unique -fno-implicit-templates -O0")
+    # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fpic -Wl,-no-gnu-unique -ftime-report -O0")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden -fpic")
+    # set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
   endif()
 endif()
 
@@ -131,39 +162,6 @@ else()
   add_custom_target(Development SOURCES ${SOURCE_LIST})
 endif()
 
-# Set the path to LuaJIT source directory
-if(MSVC)
-  set(LUAJIT_SOURCE_DIR "${SRC_DIR}/Engine/Dependencies/LuaJIT/src")  # Update the path to the LuaJIT source directory
-else()
-  set(LUAJIT_SOURCE_DIR "${SRC_DIR}/Engine/Dependencies/LuaJIT")
-endif()
-
-# Set the path to LuaJIT build directory
-set(LUAJIT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/LuaJIT")  # Update the path to the desired LuaJIT build directory
-
-ProcessorCount(NT)
-# Configure and build LuaJIT using Makefile
-if(UNIX)
-  set (LUA_BUILD_CMD make -j${NT})
-else()
-  set (LUA_BUILD_CMD "${LUAJIT_SOURCE_DIR}/msvcbuild.bat")
-endif()
-ExternalProject_Add(
-  LuaJIT
-  PREFIX ${LUAJIT_BINARY_DIR}
-  SOURCE_DIR ${LUAJIT_SOURCE_DIR}
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ${LUA_BUILD_CMD}
-  INSTALL_COMMAND ""
-  BUILD_IN_SOURCE true
-  USES_TERMINAL_BUILD true
-  BUILD_BYPRODUCTS ${LUAJIT_SOURCE_DIR}/src/libluajit.a ${LUAJIT_SOURCE_DIR}/*.lib ${LUAJIT_SOURCE_DIR}/*.dll
-)
-
-# Include LuaJIT headers
-include_directories(SYSTEM ${LUAJIT_BINARY_DIR}/src)  # Update the path to the LuaJIT headers
-set_target_properties(LuaJIT PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES $<TARGET_PROPERTY:LuaJIT,INTERFACE_INCLUDE_DIRECTORIES>)
-
 # TODO: When you become more knowledgable try writing your own font loading system
 add_subdirectory(${SRC_DIR}/Engine/Dependencies/freetype ${CMAKE_BINARY_DIR}/freetype)
 set_target_properties(freetype PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES $<TARGET_PROPERTY:freetype,INTERFACE_INCLUDE_DIRECTORIES>)
@@ -206,5 +204,32 @@ target_include_directories(imgui
   PUBLIC ${SRC_DIR}/Engine/Dependencies/imgui/backends
 )
 
+set (STD_PCH_SRC
+  ${CMAKE_CURRENT_LIST_DIR}/src/Engine/STDPCH.cpp
+)
+set (STD_PCH_HEADER
+  ${CMAKE_CURRENT_LIST_DIR}/src/Engine/STDPCH.hpp
+)
+
+# Return to when import support with PCH headers and includes is fully supported
+# # compile a list of system modules
+# function (compile_system_header SYSTEM_FILE)
+#   if (LINUX)
+#     if (NOT EXISTS "${CMAKE_BINARY_DIR}/gcm.cache/usr/include/c++/13.2.1/${SYSTEM_FILE}.gcm")
+#       execute_process(
+#         COMMAND ${CMAKE_CXX_COMPILER} -fmodules-ts -std=c++20 -c -x c++-system-header ${SYSTEM_FILE}
+#         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+#       )
+#     endif()
+#   endif()
+# endfunction()
+
+# compile_system_header(iostream)
+# compile_system_header(string)
+# compile_system_header(vector)
+# compile_system_header(thread)
+
 add_subdirectory(src/Engine)
+# add_subdirectory(src/Nunu)
+add_subdirectory(src/NorthernQuarter)
 add_subdirectory(src/UT_Engine)

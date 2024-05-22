@@ -107,14 +107,14 @@ namespace Temp::Scene::UnitTests
                 Scene::Get<Component::Type::SCALE>(scene, object.entity),
                 {5.f, 7.f});
 
-    Scene::RemoveObject(scene, object);
+    Scene::RemoveObject(scene, object.entity);
 
     AssertEqual("Test Scene Remove Object Get Name", //
                 Scene::GetObject(scene, "Mock0"),
                 {});
     AssertEqual("Test Scene Remove Object Get Entity", Scene::GetObject(scene, object.entity), {});
 
-    Scene::RemoveObject(scene, object1);
+    Scene::RemoveObject(scene, object1.entity);
     Entity::Destruct(scene.entityData);
   }
 }

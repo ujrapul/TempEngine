@@ -3,17 +3,14 @@
 
 #pragma once
 
-#include "Drawable.hpp"
+#include "Array_fwd.hpp"
+#include "Entity.hpp"
 #include "EntityData.hpp"
 #include "SceneObject.hpp"
+#include "String.hpp"
 #include "ThreadPool.hpp"
-#include "lua.h"
-#include <condition_variable>
-#include <functional>
-#include <iostream>
-#include <mutex>
-#include <unordered_map>
-#include <vector>
+#include "HashMap.hpp"
+#include <utility>
 
 namespace Temp::SceneObject
 {
@@ -25,8 +22,6 @@ namespace Temp::LevelSerializer
   struct GlobalSerializeData;
   struct GlobalDeserializeData;
 }
-
-struct lua_State;
 
 namespace Temp::Scene
 {
@@ -43,7 +38,7 @@ namespace Temp::Scene
   void Construct(Data& scene);
   void Update(Data& scene, float deltaTime);
   // Only here for Performance Testing!
-  void UpdateLegacy(Data& scene, lua_State* L, float deltaTime);
+  void UpdateLegacy(Data& scene, float deltaTime);
   void Destruct(Data& scene);
   void DrawConstruct(Data& scene);
   void DrawDestruct(Data& scene);
@@ -70,30 +65,60 @@ namespace Temp::Scene
     void (*DrawUpdateFunc)(Scene::Data&){NoOpScene};
     SceneFns* nextScene{nullptr};
     // Should refer to the name of the .level file
-    std::string name{};
+    GlobalString name{};
+
+    constexpr bool operator==(const SceneFns& other) const = default;
   };
 
   struct Data
   {
-    std::vector<SceneObject::Data> objects{};
-    std::unordered_map<std::string, int> objectsNameIdxTable{};
-    std::unordered_map<Entity::id, int> entityObjectIdxTable{};
+    SceneDynamicArray<SceneObject::Data> objects{};
+    SceneStringHashMap<int> objectsNameIdxTable{};
+    SceneDynamicArray<int> entityObjectIdxTable{};
     std::queue<RenderData> renderQueue{};
     Entity::Data entityData{};
     State state{State::ENTER};
     // Threadpool should be recreated when assigned or copied
     ThreadPool::Data threadPool{};
-    SceneFns sceneFns{};
+    SceneFns* sceneFns{nullptr};
+    void* gameData{nullptr};
 
-    Data& operator=(const Data& other)
+    Data(){}
+
+    Data(Data& other)
+      : objects(other.objects),
+        objectsNameIdxTable(other.objectsNameIdxTable),
+        entityObjectIdxTable(other.entityObjectIdxTable),
+        renderQueue(other.renderQueue),
+        entityData(other.entityData),
+        state(other.state),
+        sceneFns(other.sceneFns),
+        gameData(other.gameData)
     {
-      objects = other.objects;
-      objectsNameIdxTable = other.objectsNameIdxTable;
-      renderQueue = other.renderQueue;
-      entityData = other.entityData;
-      state = other.state;
-      sceneFns = other.sceneFns;
+    }
+
+    Data(Data&& other)
+      : Data()
+    {
+      Swap(*this, other);
+    }
+
+    Data& operator=(Data other)
+    {
+      Swap(*this, other);
       return *this;
+    }
+
+    constexpr void Swap(Data& first, Data& second)
+    {
+      Utils::Swap(first.objects, second.objects);
+      Utils::Swap(first.objectsNameIdxTable, second.objectsNameIdxTable);
+      Utils::Swap(first.entityObjectIdxTable, second.entityObjectIdxTable);
+      Utils::Swap(first.renderQueue, second.renderQueue);
+      Utils::Swap(first.entityData, second.entityData);
+      Utils::Swap(first.state, second.state);
+      Utils::Swap(first.sceneFns, second.sceneFns);
+      Utils::Swap(first.gameData, second.gameData);
     }
   };
 
@@ -104,23 +129,35 @@ namespace Temp::Scene
   void DestroyEntity(Data& scene, Entity::id entity);
   void EnqueueRender(Scene::Data& scene, RenderFunction func, void* data);
   void ClearRender(Scene::Data& scene);
-  SceneObject::Data& GetObject(Scene::Data& scene, const std::string& name);
-  const SceneObject::Data& GetObject(const Scene::Data& scene, const std::string& name);
+  SceneObject::Data& GetObject(Scene::Data& scene, const char* name);
+  const SceneObject::Data& GetObject(const Scene::Data& scene, const char* name);
   SceneObject::Data& GetObject(Scene::Data& scene, Entity::id entity);
   const SceneObject::Data& GetObject(const Scene::Data& scene, Entity::id entity);
   // Use this if spawning in the middle of game session
   void SpawnObject(Scene::Data& scene, const SceneObject::Data& object);
   int AddObject(Scene::Data& scene, const SceneObject::Data& object);
-  void RemoveObject(Scene::Data& scene, const SceneObject::Data& object);
-  bool ValidateObjectName(const Scene::Data& scene, const std::string& name);
-  void UpdateObjectName(Scene::Data& scene, SceneObject::Data& object, const std::string& name);
+  void RemoveObject(Scene::Data& scene, Entity::id entity);
+  bool ValidateObjectName(const Scene::Data& scene, const char* name);
+  void UpdateObjectName(Scene::Data& scene, SceneObject::Data& object, const char* name);
 
   template <uint8_t T>
   constexpr void AddComponent(Data& scene,
                               Entity::id entity,
-                              const Component::MapToComponentDataType<T>& component)
+                              Component::MapToComponentDataType<T> component)
   {
-    Entity::AddComponent<T>(scene.entityData, entity, component);
+    Entity::AddComponent<T>(scene.entityData, entity, std::move(component));
+  }
+
+  template <uint8_t T>
+  constexpr void AddCacheComponent(Data& scene, Entity::id entity)
+  {
+    Entity::AddCacheComponent<T>(scene.entityData, entity);
+  }
+
+  template <uint8_t T>
+  constexpr void RemoveCacheComponent(Data& scene, Entity::id entity)
+  {
+    Entity::RemoveCacheComponent<T>(scene.entityData, entity);
   }
 
   template <uint8_t T>
@@ -146,4 +183,8 @@ namespace Temp::Scene
   {
     return Entity::ComponentBits(scene.entityData, entity);
   }
+
+  void LoadSceneFnsFromDynamicLibrary(const std::string& name, SceneFns& sceneFns);
 }
+
+extern template std::_Deque_base<Temp::Scene::RenderData, std::allocator<Temp::Scene::RenderData> >::_Deque_base::~_Deque_base();

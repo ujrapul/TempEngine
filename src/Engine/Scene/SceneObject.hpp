@@ -3,17 +3,15 @@
 
 #pragma once
 
+#include "Array_fwd.hpp"
 #include "ComponentType.hpp"
 #include "EngineUtils.hpp"
 #include "Entity.hpp"
 #include "EntityType.hpp"
+#include "HashMap.hpp"
+#include "MemoryManager.hpp"
 #include "Null.hpp"
-#include <chrono>
-#include <functional>
-#include <string>
-#include <thread>
-#include <type_traits>
-#include <unordered_map>
+#include "String.hpp"
 
 namespace Temp::Scene
 {
@@ -38,10 +36,12 @@ namespace Temp::SceneObject
   {
     void* data{nullptr};
     void* constructData{nullptr};
-    std::string name{""};
+    SceneString name{};
+    SceneDynamicArray<SceneString> properties{};
     int type{EntityType::MAX};
     int shaderType{-1};
     Entity::id entity{Entity::MAX};
+    MemoryManager::Data::Type allocationType{MemoryManager::Data::Type::SCENE_ARENA};
 
     // Needed for unit test
     bool operator==(const Data& other) const = default;
@@ -52,8 +52,9 @@ namespace Temp::SceneObject
   inline Data Copy(const Data& object)
   {
     Data copy{object};
-    copy.data = new EntityType::MapToType<T>(*static_cast<EntityType::MapToType<T>*>(object.data));
-    copy.constructData = new EntityType::MapToCtorType<T>(
+    copy.data = MemoryManager::CreateScene<EntityType::MapToType<T>>(
+      *static_cast<EntityType::MapToType<T>*>(object.data));
+    copy.constructData = MemoryManager::CreateScene<EntityType::MapToCtorType<T>>(
       *static_cast<EntityType::MapToCtorType<T>*>(object.constructData));
     return copy;
   }
@@ -74,22 +75,22 @@ namespace Temp::SceneObject
   inline Data (*CopyTable[256])(Data&);
 #endif
 
-  constexpr void Construct(Scene::Data& scene, Data& object)
+  inline void Construct(Scene::Data& scene, Data& object)
   {
     FnTable[FnType::CONSTRUCT][object.type](scene, object);
   }
 
-  constexpr void Destruct(Scene::Data& scene, Data& object)
+  inline void Destruct(Scene::Data& scene, Data& object)
   {
     FnTable[FnType::DESTRUCT][object.type](scene, object);
   }
 
-  constexpr void DrawConstruct(Scene::Data& scene, Data& object)
+  inline void DrawConstruct(Scene::Data& scene, Data& object)
   {
     FnTable[FnType::DRAWCONSTRUCT][object.type](scene, object);
   }
 
-  constexpr void DrawDestruct(Scene::Data& scene, Data& object)
+  inline void DrawDestruct(Scene::Data& scene, Data& object)
   {
     FnTable[FnType::DRAWDESTRUCT][object.type](scene, object);
   }

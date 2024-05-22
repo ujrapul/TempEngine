@@ -35,11 +35,11 @@
 
 #include "Entity.hpp"
 #include "Logger.hpp"
+#include "Array_fwd.hpp"
 #include "Math.hpp"
-#include <array>
+#include "MemoryManager.hpp"
 #include <cassert>
-#include <climits>
-#include <mutex>
+#include <exception>
 
 namespace Temp
 {
@@ -49,35 +49,53 @@ namespace Temp
     inline T dummy{};
 
     template <typename T>
+    struct CacheData
+    {
+      T component{dummy<T>};
+      bool cached{false};
+
+      bool operator==(const CacheData&) const = default;
+    };
+
+    template <typename T>
     struct ArrayData
     {
       // This is using Indexes not Entities!
-      std::array<T, Entity::MAX> array{};
+      Array<T, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA> array{};
       // Value = Entity::id | Index = Data Index
-      std::array<Entity::id, Entity::MAX> sparseEntities{};
+      Array<Entity::id, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA> sparseEntities{};
       // Value = Data Index | Index = Entity
-      std::array<std::size_t, Entity::MAX> sparseIndices{};
+      Array<std::size_t, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA> sparseIndices{};
+      // Value = Component | Index = Data Index
+      Array<CacheData<T>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA> cacheEntities{};
       std::size_t size{};
     };
 
     template <typename T>
     inline void Reset(ArrayData<T>& data)
     {
-      // NOTE: Shouldn't be necessary
-      data.array.fill({});
+      data.array.Fill({});
       Init(data);
     }
 
     template <typename T>
     inline void Init(ArrayData<T>& data)
     {
-      data.sparseEntities.fill({Entity::MAX});
-      data.sparseIndices.fill({SIZE_MAX});
+      if (!data.array.buffer)
+      {
+        data.array = {};
+        data.sparseEntities = {};
+        data.sparseIndices = {};
+        data.cacheEntities = {};
+      }
+      data.sparseEntities.Fill({Entity::MAX});
+      data.sparseIndices.Fill({SIZE_MAX});
+      data.cacheEntities.Fill({});
       data.size = 0;
     }
 
     template <typename T>
-    inline void Set(ArrayData<T>& data, Entity::id entity, const T& component)
+    inline void Set(ArrayData<T>& data, Entity::id entity, T component)
     {
       assert(entity < Entity::MAX && "[ComponentData] Set: Entity::id not valid!");
 
@@ -90,9 +108,26 @@ namespace Temp
         std::size_t newIndex = data.size;
         data.sparseIndices[entity] = newIndex;
         data.sparseEntities[newIndex] = entity;
-        data.array[newIndex] = component;
+        data.array[newIndex] = std::move(component);
         ++data.size;
       }
+    }
+
+    template <typename T>
+    inline void SetCache(ArrayData<T>& data, Entity::id entity)
+    {
+      assert(entity < Entity::MAX && "[ComponentData] SetCache: Entity::id not valid!");
+      data.cacheEntities[entity].component = std::move(data.array[data.sparseIndices[entity]]);
+      data.cacheEntities[entity].cached = true;
+    }
+
+    template <typename T>
+    inline T GetCache(ArrayData<T>& data, Entity::id entity)
+    {
+      assert(entity < Entity::MAX && "[ComponentData] GetCache: Entity::id not valid!");
+      T out = std::move(data.cacheEntities[entity].component);
+      data.cacheEntities[entity] = {};
+      return std::move(out);
     }
 
     template <typename T>
@@ -102,7 +137,7 @@ namespace Temp
 
       std::size_t indexOfRemovedEntity = data.sparseIndices[entity];
       std::size_t indexOfLastElement = data.size - 1;
-      data.array[indexOfRemovedEntity] = data.array[indexOfLastElement];
+      data.array[indexOfRemovedEntity] = std::move(data.array[indexOfLastElement]);
 
       Entity::id entityOfLastElement = data.sparseEntities[indexOfLastElement];
       data.sparseIndices[entityOfLastElement] = indexOfRemovedEntity;
@@ -125,7 +160,13 @@ namespace Temp
       {
         return data.array[data.sparseIndices[entity]];
       }
-      Logger::Log("[ComponentData] Get const: Warning! Accessing invalid entity!");
+      else if(data.cacheEntities[entity].cached)
+      {
+        return data.cacheEntities[entity].component;
+      }
+      Logger::LogErr("[ComponentData] Get const: Warning! Accessing invalid entity!");
+      assert(false);
+      throw std::exception();
       return dummy<T>;
     }
 
@@ -138,7 +179,13 @@ namespace Temp
       {
         return data.array[data.sparseIndices[entity]];
       }
-      Logger::Log("[ComponentData] Get: Warning! Accessing invalid entity!");
+      else if(data.cacheEntities[entity].cached)
+      {
+        return data.cacheEntities[entity].component;
+      }
+      Logger::LogErr("[ComponentData] Get: Warning! Accessing invalid entity!");
+      assert(false);
+      throw std::exception();
       return dummy<T>;
     }
 

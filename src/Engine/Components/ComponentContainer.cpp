@@ -3,6 +3,7 @@
 
 #include "ComponentContainer.hpp"
 
+#include "Entity.hpp"
 #include "GameComponentType.hpp"
 
 namespace Temp::Component::Container
@@ -96,4 +97,32 @@ namespace Temp::Component::Container
   }
 
   void Reset(Data& data) { EnumRange<ENUM_MIN, ENUM_MAX>::ResetEnums(data); }
+}
+
+namespace Temp
+{
+  template struct Array<Component::Null, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  template struct Array<Entity::id, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  template struct Array<std::size_t, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  template struct Array<Component::CacheData<Component::Null>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  template struct Array<Math::Vec2f, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  template struct Array<Component::CacheData<Math::Vec2f>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  template struct Array<Component::Drawable::Data, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  template struct Array<Component::CacheData<Component::Drawable::Data>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  template struct Array<SceneString, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  template struct Array<Component::CacheData<SceneString>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  template struct Array<Component::Hoverable::Data, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  template struct Array<Component::CacheData<Component::Hoverable::Data>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  template struct Array<Component::Updateable::Data, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+  template struct Array<Component::CacheData<Component::Updateable::Data>, Entity::MAX, MemoryManager::Data::Type::SCENE_ARENA>;
+
+  template Temp::Math::Vec2<float> Temp::Component::dummy<Temp::Math::Vec2<float>>;
+  template Temp::BaseString<Temp::MemoryManager::Data::Type::SCENE_ARENA> Temp::Component::dummy<Temp::BaseString<Temp::MemoryManager::Data::Type::SCENE_ARENA>>;
+  template Temp::Component::Drawable::Data Temp::Component::dummy<Temp::Component::Drawable::Data>;
+  template Temp::Component::Hoverable::Data Temp::Component::dummy<Temp::Component::Hoverable::Data>;
 }

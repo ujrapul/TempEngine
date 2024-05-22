@@ -22,24 +22,26 @@ namespace Temp::Component::Hoverable
     float endY = beginY + hoverable.height * hoverable.scale.y;
 
     // clang-format off
-    std::vector<float> vertices = {
+    float vertices[8] = {
       // positions      
       endX, endY,   // top right
       endX, beginY,  // bottom right
       beginX, beginY, // bottom left
       beginX, endY,   // top left
     };
-    auto indices = std::vector<unsigned int>{
+    GLuint indices[6] = {
       0, 1, 3, // First Triangle
       1, 2, 3  // Second Triangle
     };
     // clang-format on
 
     hoverable.drawable.entity = Entity::MAX - 1;
-    Drawable::UpdateData(hoverable.drawable, std::move(vertices), std::move(indices));
+    hoverable.drawable.vertices.Replace(vertices, 8);
+    hoverable.drawable.indices.Replace(indices, 6);
+    Drawable::UpdateData(hoverable.drawable);
     Drawable::Construct(hoverable.drawable,
                         Render::EditorShaderIdx::HOVERABLE,
-                        GL_STATIC_DRAW,
+                        GL_DYNAMIC_DRAW,
                         {2},
                         2);
     Drawable::SetTranslate(hoverable.drawable, {0});

@@ -5,7 +5,6 @@
 
 #include "Math.hpp"
 #include "Entity.hpp"
-#include <string>
 
 namespace Temp
 {

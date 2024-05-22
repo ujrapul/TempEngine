@@ -2,12 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 #include "OpenGLWrapper.hpp"
-#include "FontLoader.hpp"
 #include "Logger.hpp"
 #include "Shader.hpp"
 #include "TGA.hpp"
 #include "gl.h"
-#include <climits>
 
 // IMPORTANT NOTES SINCE YOU'RE TOO DUMB TO REMEMBER THEM!
 //
@@ -33,7 +31,7 @@ namespace Temp::Render::OpenGLWrapper
 
   void ClearShaderStrings()
   {
-    for (std::vector<const char*>& shaderGroup : globalShaders)
+    for (GlobalDynamicArray<const char*>& shaderGroup : globalShaders)
     {
       for (const char* string : shaderGroup)
       {
@@ -43,7 +41,7 @@ namespace Temp::Render::OpenGLWrapper
         }
       }
     }
-    globalShaders.clear();
+    globalShaders.Clear();
   }
 
   void LoadShaders()
@@ -52,10 +50,10 @@ namespace Temp::Render::OpenGLWrapper
 
     const auto& shadersPath = GetShadersPath();
 
+    size_t i = 0;
     for (const auto& shaderFile : ShaderFiles())
     {
-      globalShaders.insert(
-        globalShaders.end(),
+      globalShaders.InsertEnd(
         {
           {
             VERT_HEADER,
@@ -69,6 +67,7 @@ namespace Temp::Render::OpenGLWrapper
           },
         } //
       );
+      globalShaderPrograms.PushBack(CreateShaderProgram(i++));
     }
   }
 
@@ -80,8 +79,8 @@ namespace Temp::Render::OpenGLWrapper
 
   GLuint LoadTextureTGA(const char* texturePath, int imageDataType, TGA::Header& header, GLint filterParam)
   {
-    std::vector<uint8_t> data;
-    if (!TGA::Read(texturePath, header, data))
+    DynamicArray<uint8_t> data;
+    if (!TGA::Read((AssetsDirectory() / "Images" / texturePath).c_str(), header, data))
     {
       return UINT_MAX;
     }
@@ -89,9 +88,24 @@ namespace Temp::Render::OpenGLWrapper
     return CreateTexture(imageDataType, //
                          header.width,
                          header.height,
-                         data.data(),
+                         data.buffer,
                          GL_REPEAT,
                          filterParam,
                          4);
+  }
+
+  void Destruct()
+  {
+    ClearShaderStrings();
+    for (auto shader : globalShaderPrograms)
+    {
+      CleanShader(shader);
+    }
+    for (auto& GLObject : globalFreeGLObjects)
+    {
+      CleanElementBuffer(GLObject.EBO);
+      CleanArrayBuffer(GLObject.VBO);
+      CleanArrays(GLObject.VAO);
+    }
   }
 }

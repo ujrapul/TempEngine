@@ -3,17 +3,17 @@
 
 #pragma once
 
+#include "Array_fwd.hpp"
 #include "EngineUtils.hpp"
 #include "Math.hpp"
 #include "Logger.hpp"
+#include "String.hpp"
+#include <climits>
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
 #else
 #include "gl.h"
 #endif
-#include <filesystem>
-#include <iostream>
-#include <vector>
 
 // IMPORTANT NOTES SINCE YOU'RE TOO DUMB TO REMEMBER THEM!
 //
@@ -28,8 +28,17 @@ namespace Temp::TGA
 
 namespace Temp::Render::OpenGLWrapper
 {
+  struct GLObjectData
+  {
+    GLuint VAO{0};
+    GLuint VBO{0};
+    GLuint EBO{0};
+  };
+
   // DO NOT USE OUTSIDE OPENGLWRAPPER!
-  inline std::vector<std::vector<const char*>> globalShaders;
+  inline GlobalDynamicArray<GlobalDynamicArray<const char*>> globalShaders;
+  inline GlobalDynamicArray<GLuint> globalShaderPrograms;
+  inline GlobalDynamicArray<GLObjectData> globalFreeGLObjects;
 
   void ClearShaderStrings();
   void LoadShaders();
@@ -50,10 +59,10 @@ namespace Temp::Render::OpenGLWrapper
       switch (shaderType)
       {
         case GL_VERTEX_SHADER:
-          Logger::LogErr("[OpenGL] Vertex shader compilation failed: " + std::string(error));
+          Logger::LogErr(String("[OpenGL] Vertex shader compilation failed: ") + error);
           break;
         case GL_FRAGMENT_SHADER:
-          Logger::LogErr("[OpenGL] Fragment shader compilation failed: " + std::string(error));
+          Logger::LogErr(String("[OpenGL] Fragment shader compilation failed: ") + error);
           break;
         default:
           break;
@@ -63,7 +72,7 @@ namespace Temp::Render::OpenGLWrapper
     return shader;
   }
 
-  constexpr const char** GetShader(int shader) { return globalShaders[shader].data(); }
+  constexpr const char** GetShader(int shader) { return globalShaders[shader].buffer; }
 
   inline GLuint CreateVertexShader(int shader)
   {
@@ -92,7 +101,7 @@ namespace Temp::Render::OpenGLWrapper
     {
       GLchar error[128] = {};
       glGetProgramInfoLog(shaderProgram, 128, nullptr, error);
-      Logger::LogErr("[OpenGL] Shader program linking failed: " + std::string(error));
+      Logger::LogErr(String("[OpenGL] Shader program linking failed: ") + error);
       return UINT_MAX;
     }
 
@@ -100,6 +109,11 @@ namespace Temp::Render::OpenGLWrapper
     glDeleteShader(fragmentShader);
 
     return shaderProgram;
+  }
+
+  inline GLuint GetShaderProgram(int shader)
+  {
+    return globalShaderPrograms[shader];
   }
 
   inline GLuint CreateVAO()
@@ -131,10 +145,23 @@ namespace Temp::Render::OpenGLWrapper
     return VBO;
   }
 
-  inline void UpdateVBO(GLuint VBO, void* data, size_t arraySize, int BufferDraw = GL_STATIC_DRAW)
+  inline void UpdateVBO(GLuint VBO, void* data, size_t arraySize, size_t typeSize = sizeof(float), int BufferDraw = GL_STATIC_DRAW)
   {
+    if (arraySize == 0)
+    {
+      return;
+    }
+    GLint size = 0;
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * arraySize, data, BufferDraw);
+    glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+    if (size != (GLint)(typeSize * arraySize) || size == 0)
+    {
+      glBufferData(GL_ARRAY_BUFFER, typeSize * arraySize, data, BufferDraw);
+    }
+    else
+    {
+      glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
+    }
     glBindBuffer(GL_ARRAY_BUFFER, 0);
   }
 
@@ -153,8 +180,21 @@ namespace Temp::Render::OpenGLWrapper
                           size_t arraySize,
                           int BufferDraw = GL_STATIC_DRAW)
   {
+    if (arraySize == 0 || !indices)
+    {
+      return EBO;
+    }
+    GLint size = 0;
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * arraySize, indices, BufferDraw);
+    glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+    if (size != (GLint)(sizeof(GLuint) * arraySize) || size == 0)
+    {
+      glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * arraySize, indices, BufferDraw);
+    }
+    else
+    {
+      glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, size, indices);
+    }
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     return EBO;
   }
@@ -164,7 +204,7 @@ namespace Temp::Render::OpenGLWrapper
     GLuint UBO = UINT_MAX;
     glGenBuffers(1, &UBO);
     glBindBuffer(GL_UNIFORM_BUFFER, UBO);
-    glBufferData(GL_UNIFORM_BUFFER, bytes, NULL, GL_STATIC_DRAW);
+    glBufferData(GL_UNIFORM_BUFFER, bytes, NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     // glBindBufferRange(GL_UNIFORM_BUFFER, 0, UBO, 0, bytes);
     return UBO;
@@ -172,8 +212,14 @@ namespace Temp::Render::OpenGLWrapper
 
   inline void BindUBOShader(GLuint UBO, GLuint shaderProgram, const char* property, int index)
   {
-    glUniformBlockBinding(shaderProgram, glGetUniformBlockIndex(shaderProgram, property), index);
-    glBindBufferBase(GL_UNIFORM_BUFFER, index, UBO);
+    // Increase as number of indexes grow
+    static GlobalArray<GlobalDynamicArray<int>, 512> shaderProperties;
+    if (shaderProperties[shaderProgram].Find(index) == SIZE_MAX)
+    {
+      glUniformBlockBinding(shaderProgram, glGetUniformBlockIndex(shaderProgram, property), index);
+      glBindBufferBase(GL_UNIFORM_BUFFER, index, UBO);
+      shaderProperties[shaderProgram].PushBack(index);
+    }
   }
 
   inline void UpdateUBO(GLuint UBO, float* data, int size, int offset)
@@ -357,21 +403,28 @@ namespace Temp::Render::OpenGLWrapper
   {
     glBindVertexArray(vao);
     glDeleteVertexArrays(1, &vao);
+    vao = UINT_MAX;
   }
 
   inline void CleanArrayBuffer(GLuint& buffer)
   {
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
     glDeleteBuffers(1, &buffer);
+    buffer = UINT_MAX;
   }
 
   inline void CleanElementBuffer(GLuint& buffer)
   {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer);
     glDeleteBuffers(1, &buffer);
+    buffer = UINT_MAX;
   }
 
-  inline void CleanShader(GLuint& shader) { glDeleteProgram(shader); }
+  inline void CleanShader(GLuint& shader)
+  {
+    glDeleteProgram(shader);
+    shader = UINT_MAX;
+  }
 
   // Default is 4, use 1 for Font Textures
   // 1 to disable byte-alignment restriction
@@ -396,4 +449,6 @@ namespace Temp::Render::OpenGLWrapper
                     GL_UNSIGNED_BYTE,
                     data);
   }
+
+  void Destruct();
 }

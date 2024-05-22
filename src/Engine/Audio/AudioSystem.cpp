@@ -3,10 +3,15 @@
 
 #include "AudioSystem.hpp"
 
+#include "Array_fwd.hpp"
 #include "Engine.hpp"
 #include "EngineUtils.hpp"
 #include "Logger.hpp"
+#include "Math_fwd.hpp"
+#include "MemoryManager.hpp"
 #include "ThreadPool.hpp"
+#include <exception>
+#include <thread>
 #ifdef __linux__
 #include <alsa/asoundlib.h>
 #include <alsa/pcm.h>
@@ -19,15 +24,7 @@
 #include <windows.h>
 #include <xaudio2.h>
 #endif
-#include <atomic>
-#include <climits>
-#include <cstddef>
-#include <filesystem>
-#include <mutex>
 #include <sndfile.h>
-#include <string>
-#include <thread>
-#include <vector>
 
 #ifdef __linux__
 /* Use the newer ALSA API */
@@ -38,10 +35,20 @@ namespace Temp::AudioSystem
 {
   namespace
   {
+    struct GlobalTaskData
+    {
+      Data* data{nullptr};
+      std::atomic<bool>* stopHandle{nullptr};
+      size_t index{0};
+      int i{0};
+      bool inUse{false};
+    };
+
     std::atomic<float> masterVolume = 1.f;
     ThreadPool::Data threadPool;
+    GlobalArray<GlobalTaskData, 32> taskDatas;
 
-    SNDFILE* OpenAudioFile(SF_INFO& sfInfo, const std::string& file)
+    SNDFILE* OpenAudioFile(SF_INFO& sfInfo, const char* file)
     {
       SNDFILE* sndFile = nullptr;
 
@@ -49,7 +56,7 @@ namespace Temp::AudioSystem
       while (!sndFile && retry < 100)
       {
         sndFile = sf_open(
-          std::filesystem::path(AssetsDirectory() / "Audio" / file).string().c_str(),
+          std::filesystem::path(AssetsDirectory() / "Audio" / file).c_str(),
           SFM_READ,
           &sfInfo);
         ++retry;
@@ -62,10 +69,10 @@ namespace Temp::AudioSystem
       return sndFile;
     }
 
-    void ReadAudioFilePart(const std::string& file,
+    void ReadAudioFilePart(const char* file,
                            sf_count_t position,
                            sf_count_t numSamples,
-                           std::vector<short>& audioBuffer)
+                           ThreadedDynamicArray<short>& audioBuffer)
     {
       SF_INFO sfInfo;
       SNDFILE* sndFile = OpenAudioFile(sfInfo, file);
@@ -80,7 +87,7 @@ namespace Temp::AudioSystem
       sf_count_t bufferSamples = bufferSize;
       short buffer[bufferSize];
       sf_count_t numSamplesRead = 0;
-      audioBuffer.reserve(numSamples);
+      // audioBuffer.Resize(numSamples);
 
       // Will currently get dropped samples for .ogg files (maybe others as well)
       // Prefer using .wav
@@ -98,16 +105,14 @@ namespace Temp::AudioSystem
           bufferSamples /= 2;
           continue;
         }
-        audioBuffer.insert(audioBuffer.end(),
-                           std::make_move_iterator(buffer),
-                           std::make_move_iterator(buffer + numSamplesRead));
+        audioBuffer.InsertEnd(buffer, numSamplesRead);
         numSamples -= numSamplesRead;
       }
 
       sf_close(sndFile);
     }
 
-    void ReadAudioFile(Data& data, const std::string& file, size_t index)
+    void ReadAudioFile(Data& data, const char* file, size_t index)
     {
       SF_INFO sfInfo;
       SNDFILE* sndFile = OpenAudioFile(sfInfo, file);
@@ -116,15 +121,14 @@ namespace Temp::AudioSystem
         return;
       }
 
-      size_t numThreads = std::thread::hardware_concurrency();
-      std::vector<std::thread> threads;
-      std::vector<std::vector<short>> audioBuffers;
-      audioBuffers.resize(numThreads);
+      size_t numThreads = Math::Min(128u, std::thread::hardware_concurrency());
+      std::thread threads[128];
+      ThreadedDynamicArray<ThreadedDynamicArray<short>> audioBuffers(true, numThreads);
       sf_count_t totalFrames = sfInfo.frames;
       sf_count_t totalSamples = totalFrames * sfInfo.channels;
       sf_count_t samplesPerThread = totalSamples / numThreads;
       sf_count_t framesPerThread = totalFrames / numThreads;
-      data.buffers[index].reserve(totalSamples);
+      data.buffers[index].Reserve(totalSamples + numThreads * 2);
 
       for (size_t i = 0; i < numThreads; ++i)
       {
@@ -132,20 +136,19 @@ namespace Temp::AudioSystem
         sf_count_t numSamples = (i == numThreads - 1)
                                   ? (totalSamples - samplesPerThread * (numThreads - 1))
                                   : samplesPerThread;
-
-        threads.emplace_back([&file, &audioBuffers, position, numSamples, i]() {
+        audioBuffers.PushBack(ThreadedDynamicArray<short>(true, numSamples));
+        threads[i] = std::thread([&file, &audioBuffers, position, numSamples, i]() {
           ReadAudioFilePart(file, position, numSamples, audioBuffers[i]);
         });
       }
-      for (auto& thread : threads)
+      for (size_t i = 0; i < numThreads; ++i)
       {
-        thread.join();
+        threads[i].join();
       }
-      for (auto& buffer : audioBuffers)
+      for (size_t i = 0; i < audioBuffers.size; ++i)
       {
-        data.buffers[index].insert(data.buffers[index].end(),
-                                   std::make_move_iterator(buffer.begin()),
-                                   std::make_move_iterator(buffer.end()));
+        const auto& audioBuffer = audioBuffers[i];
+        data.buffers[index].InsertEnd(audioBuffer.buffer, audioBuffer.size);
       }
 
       sf_close(sndFile);
@@ -155,7 +158,11 @@ namespace Temp::AudioSystem
     void PlayAudioSingleLinux(Data& data, int i, std::atomic<bool>& stopHandle)
     {
       snd_pcm_t* handle;
-      snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+      if (snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0) != 0)
+      {
+        Logger::LogErr("Could not obtain handle to audio device!");
+        return;
+      }
 
       snd_pcm_hw_params_t* params;
       unsigned int val;
@@ -192,39 +199,37 @@ namespace Temp::AudioSystem
       rc = snd_pcm_hw_params(handle, params);
       if (rc < 0)
       {
-        Logger::LogErr(std::string("[Audio] Unable to set hw parameters: %s\n", snd_strerror(rc)));
+        Logger::LogErr(String("[Audio] Unable to set hw parameters: ") + snd_strerror(rc));
         return;
       }
 
       size_t offset = 0;
       const auto& audioBuffer = data.buffers[i];
-      while (offset < audioBuffer.size() && !data.stop && !stopHandle)
+      short currentAudioBuffer[384];
+      while (offset < audioBuffer.size && !data.stop && !stopHandle)
       {
         // Calculate the remaining frames to write
-        size_t remainingFrames = std::min(frames, (audioBuffer.size() - offset) / 2);
-        std::vector<short> currentBuffer;
-        currentBuffer.resize(remainingFrames * 2);
-
+        size_t remainingFrames = std::min(frames, (audioBuffer.size - offset) / 2);        
         {
           std::lock_guard<std::mutex> lock{data.mtx};
-          for (size_t frame = offset, j = 0; j < currentBuffer.size(); ++frame, ++j)
+          for (size_t frame = offset, j = 0; j < remainingFrames * 2; ++frame, ++j)
           {
-            currentBuffer[j] = audioBuffer[frame] * masterVolume * data.volumes[i];
+            currentAudioBuffer[j] = audioBuffer[frame] * masterVolume * data.volumes[i];
           }
         }
 
         // Try to write the remaining frames to the PCM device
-        rc = snd_pcm_writei(handle, currentBuffer.data(), remainingFrames);
+        rc = snd_pcm_writei(handle, currentAudioBuffer, remainingFrames);
 
         if (rc == -EPIPE)
         {
           /* EPIPE means underrun */
-          Logger::LogErr("[Audio] Underrun occurred: index " + std::to_string(i));
+          Logger::LogErr(String("[Audio] Underrun occurred: index ") + String::ToString(i));
           snd_pcm_prepare(handle);
         }
         else if (rc < 0)
         {
-          Logger::LogErr(std::string("[Audio] Error from writei: %s\n", snd_strerror(rc)));
+          Logger::LogErr(String("[Audio] Error from writei: ") + snd_strerror(rc));
         }
         else
         {
@@ -551,18 +556,18 @@ namespace Temp::AudioSystem
 
     void PlayAudioSingle(Data& data, int i, std::atomic<bool>& stopHandle)
     {
-      if (data.buffers.size() == 0)
+      if (data.buffers.size == 0)
       {
         return;
       }
 
       {
         std::lock_guard<std::mutex> lock{data.mtx};
-        if (data.currentlyPlayedAudio.contains(i))
+        if (data.currentlyPlayedAudio[i])
         {
           return;
         }
-        data.currentlyPlayedAudio.insert(i);
+        data.currentlyPlayedAudio[i] = true;
       }
 #ifdef __linux__
       PlayAudioSingleLinux(data, i, stopHandle);
@@ -573,39 +578,94 @@ namespace Temp::AudioSystem
 #endif
       {
         std::lock_guard<std::mutex> lock{data.mtx};
-        data.currentlyPlayedAudio.erase(i);
+        data.currentlyPlayedAudio[i] = false;
       }
     }
   }
 
-  void ReadAudioFiles(Data& data, const std::vector<std::string>& files)
+  void ReadAudioFiles(Data& data, const GlobalDynamicArray<GlobalString>& files)
   {
-    data.buffers.resize(files.size());
-    data.volumes.resize(files.size(), 1.f);
+    MemoryManager::ScopedTempMemory temp;
+
+    data.buffers.Fill(GlobalDynamicArray<short>(true));
+    data.volumes.Fill(1.f);
     ThreadPool::Initialize(threadPool);
-    for (size_t i = 0; i < files.size(); ++i)
+    struct TaskData
     {
-      auto f = [&data, &files, i]() { AudioSystem::ReadAudioFile(data, files[i], i); };
-      ThreadPool::Enqueue(threadPool, std::move(f));
+      Data* data;
+      const GlobalDynamicArray<GlobalString>* const files;
+      size_t i;
+    };
+    DynamicArray<void*> taskDatas;
+    for (size_t i = 0; i < files.size; ++i)
+    {
+      taskDatas.PushBack(MemoryManager::CreateTemp<TaskData>(&data, &files, i));
     }
+    auto f = [](void* data) {
+      auto taskData = static_cast<TaskData*>(data);
+      AudioSystem::ReadAudioFile(*taskData->data,
+                                 (*taskData->files)[taskData->i].c_str(),
+                                 taskData->i);
+    };
+    ThreadPool::EnqueueForEach(threadPool, taskDatas.buffer, f, taskDatas.size);
     ThreadPool::Wait(threadPool);
   }
 
   void PlayAudio(Data& data, int i, std::atomic<bool>& stopHandle)
   {
-    auto f = [&data, i, &stopHandle]() { PlayAudioSingle(data, i, stopHandle); };
-    ThreadPool::Enqueue(threadPool, std::move(f));
+    int usedIndex = -1;
+    for (size_t currTask = 0; currTask < taskDatas.size; ++currTask)
+    {
+      if (!taskDatas[currTask].inUse)
+      {
+        taskDatas[currTask] = {&data, &stopHandle, currTask, i, true};
+        usedIndex = currTask;
+        break;
+      }
+    }
+    auto f = [](void* data) {
+      auto taskData = static_cast<GlobalTaskData*>(data);
+      PlayAudioSingle(*taskData->data, taskData->i, *taskData->stopHandle);
+      taskDatas[taskData->index].inUse = false;
+    };
+    if (usedIndex > -1)
+    {
+      ThreadPool::Enqueue(threadPool, f, &taskDatas[usedIndex]);
+    }
+    else
+    {
+      Logger::Log(String("No open buffers, skipping audio: ") + i);
+    }
   }
 
   void PlayAudioLoop(Data& data, int i, std::atomic<bool>& stopHandle)
   {
-    auto f = [&data, i, &stopHandle]() {
-      while (!data.stop && !stopHandle)
+    int usedIndex = -1;
+    for (size_t currTask = 0; currTask < taskDatas.size; ++currTask)
+    {
+      if (!taskDatas[currTask].inUse)
       {
-        PlayAudioSingle(data, i, stopHandle);
+        taskDatas[currTask] = {&data, &stopHandle, currTask, i, true};
+        usedIndex = currTask;
+        break;
       }
+    }
+    auto f = [](void* data) {
+      auto taskData = static_cast<GlobalTaskData*>(data);
+      while (!taskData->data->stop && !(*taskData->stopHandle))
+      {
+        PlayAudioSingle(*taskData->data, taskData->i, *taskData->stopHandle);
+      }
+      taskDatas[taskData->index].inUse = false;
     };
-    ThreadPool::Enqueue(threadPool, std::move(f));
+    if (usedIndex > -1)
+    {
+      ThreadPool::Enqueue(threadPool, f, &taskDatas[usedIndex]);
+    }
+    else
+    {
+      Logger::Log(String("No open buffers, skipping audio loop: ") + i);
+    }
   }
 
   void ChangeMasterVolume(float volume) { Temp::AudioSystem::masterVolume = volume; }

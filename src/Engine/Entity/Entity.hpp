@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include <cstdint>
-#include <climits>
+#include "STDPCH.hpp"
 
 namespace Temp::Entity
 {

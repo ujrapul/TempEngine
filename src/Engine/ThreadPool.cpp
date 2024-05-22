@@ -4,18 +4,7 @@
 #include "ThreadPool.hpp"
 #include "ComponentData.hpp"
 #include "Entity.hpp"
-#include "Luable.hpp"
-#include "Math.hpp"
-#include "lua.h"
-#include "lua.hpp"
-#include <algorithm>
-#include <condition_variable>
-#include <functional>
-#include <future>
-#include <queue>
 #include <thread>
-#include <utility>
-#include <vector>
 
 namespace Temp::ThreadPool
 {
@@ -23,60 +12,38 @@ namespace Temp::ThreadPool
   {
     void WorkerThread(Data& threadPool, int /*id*/)
     {
-      lua_State* L;
-      {
-        std::lock_guard<std::mutex> lock(threadPool.mtx);
-        L = luaL_newstate();
-        luaL_openlibs(L);
-      }
-
       while (true)
       {
-        std::function<void()> task;
-        std::function<void(lua_State*)> luaTask;
+        Task task;
         {
           std::unique_lock<std::mutex> lock(threadPool.mtx);
           threadPool.condition.wait(lock, [&threadPool]() {
-            return threadPool.stop || !threadPool.tasks.empty() || !threadPool.luaTasks.empty();
+            return threadPool.stop || !threadPool.tasks.Empty();
           });
           if (threadPool.stop)
           {
             return;
           }
-          if (!threadPool.tasks.empty())
+          if (!threadPool.tasks.Empty())
           {
-            task = std::move(threadPool.tasks.front());
-            threadPool.tasks.pop();
-          }
-          if (!threadPool.luaTasks.empty())
-          {
-            luaTask = std::move(threadPool.luaTasks.front());
-            threadPool.luaTasks.pop();
+            task = threadPool.tasks.Front();
+            threadPool.tasks.Pop();
           }
         }
         threadPool.activeThreads.fetch_add(1);
-        if (task)
+        if (task.func && task.data)
         {
-          task();
-        }
-        if (luaTask)
-        {
-          luaTask(L);
+          task.func(task.data);
         }
         threadPool.activeThreads.fetch_sub(1);
         std::this_thread::sleep_for(std::chrono::milliseconds(0));
-      }
-
-      {
-        std::lock_guard<std::mutex> lock(threadPool.mtx);
-        lua_close(L);
       }
     }
 
     void AddWorker(Data& threadPool, int id)
     {
       auto f = [&threadPool, id]() { WorkerThread(threadPool, id); };
-      threadPool.threads.emplace_back(std::move(f));
+      threadPool.threads.PushBack(std::thread(f));
     }
 
     void Initialize(Data& threadPool, int numThreads)
@@ -85,6 +52,7 @@ namespace Temp::ThreadPool
       {
         AddWorker(threadPool, id);
       }
+      threadPool.tasks.buffer.Reserve(512);
     }
 
     void Poll(Data& threadPool)
@@ -112,10 +80,9 @@ namespace Temp::ThreadPool
     }
     {
       std::unique_lock<std::mutex> lock(threadPool.mtx);
-      threadPool.threads.clear();
+      threadPool.threads.Clear();
       threadPool.activeThreads = 0;
       threadPool.tasks = {};
-      threadPool.luaTasks = {};
       threadPool.stop = false;
     }
   }
@@ -126,13 +93,13 @@ namespace Temp::ThreadPool
     // to prevent hitching
     constexpr const size_t inMaxRange = 10000;
     size_t inValue = Math::Min(collectionSize, inMaxRange);
-    const int outMinRange = std::thread::hardware_concurrency();
+    const int outMinRange = Math::Min(std::thread::hardware_concurrency(), 32u);
     // Scaling thread multiplier based on thread count: 8T - 1, 16T - 2, 32T - 4
     const int outMaxRange = outMinRange *
                             Math::Max(Math::Floor(((float)outMinRange / 32 * (4 - 1) + 1)), 1);
     int upperThread = (int)((float)inValue / inMaxRange * (outMaxRange - outMinRange) +
                             outMinRange);
-    if (upperThread != (int)threadPool.threads.size())
+    if (upperThread != (int)threadPool.threads.size)
     {
       Destruct(threadPool);
       Initialize(threadPool, upperThread);
@@ -145,7 +112,7 @@ namespace Temp::ThreadPool
   bool IsActive(Data& threadPool)
   {
     std::unique_lock<std::mutex> lock(threadPool.mtx);
-    return !threadPool.tasks.empty() || !threadPool.luaTasks.empty() || threadPool.activeThreads.load() > 0;
+    return !threadPool.tasks.Empty() || threadPool.activeThreads.load() > 0;
   }
 
   void Wait(Data& threadPool)

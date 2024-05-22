@@ -14,6 +14,8 @@ namespace Temp::Component::Updateable
   {
     void *data{nullptr};
     int type{};
+
+    constexpr bool operator==(const Data&) const = default;
   };
 
   void Update(Scene::Data& scene, Data& updateable, float deltaTime);

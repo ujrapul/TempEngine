@@ -26,7 +26,7 @@ namespace Temp::EditorEntry
     engine.backgroundColor = data.backgroundColor;
 
     Scene::SceneFns scene = Scene::EditorLevel::Create();
-    engine.sceneFns.push_back(scene);
+    engine.sceneFns.PushBack(scene);
 
     Global::Construct(engine);
     Global::Run(windowName, 1920, 1080);
