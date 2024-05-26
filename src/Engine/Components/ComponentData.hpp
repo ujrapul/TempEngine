@@ -34,12 +34,6 @@
 #pragma once
 
 #include "Entity.hpp"
-#include "Logger.hpp"
-#include "Array_fwd.hpp"
-#include "Math.hpp"
-#include "MemoryManager.hpp"
-#include <cassert>
-#include <exception>
 
 namespace Temp
 {

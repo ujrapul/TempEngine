@@ -9,6 +9,7 @@
 #include "Logger.hpp"
 #include "Scene.hpp"
 #include "SceneObject.hpp"
+#include "OpenGLWrapper.hpp"
 // #include "RenderUtils.hpp"
 #ifdef EDITOR
 #include "imgui.h"

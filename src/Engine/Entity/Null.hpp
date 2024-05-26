@@ -4,7 +4,7 @@
 #pragma once
 
 #include "Entity.hpp"
-#include "Logger.hpp"
+#include "Logger.hpp" // IWYU pragma: keep
 
 struct Null
 {

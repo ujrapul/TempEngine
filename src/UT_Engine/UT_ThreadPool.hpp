@@ -3,7 +3,6 @@
 
 #include "ComponentType.hpp"
 #include "EntityType.hpp"
-#include "Logger.hpp"
 #include "Scene.hpp"
 #include "SceneObject.hpp"
 #include "ThreadPool.hpp"
@@ -15,12 +14,14 @@ namespace Temp::ThreadPool::UnitTests
   inline void Run()
   {
     SceneObject::Init();
+    ThreadPool::Data threadPool{};
+    ThreadPool::Initialize(threadPool);
 
     Scene::Data scene;
     Scene::Initialize(scene);
 
     AssertEqual("Test ThreadPool Number of Threads",
-                (unsigned int)scene.threadPool.threads.size,
+                (unsigned int)threadPool.threads.size,
                 std::thread::hardware_concurrency());
 
     std::array<Mock::Data, 500> mock;
@@ -30,13 +31,13 @@ namespace Temp::ThreadPool::UnitTests
     }
 
     void** dummyTasks = (void**)malloc(sizeof(void*) * 10000);
-    ThreadPool::EnqueueForEach(scene.threadPool, dummyTasks, [](void*) {
+    ThreadPool::EnqueueForEach(threadPool, dummyTasks, [](void*) {
       std::this_thread::sleep_for(std::chrono::nanoseconds(1));
     }, 10000);
     Assert("Test ThreadPool Number of Active Threads",
-           (unsigned int)scene.threadPool.activeThreads.load() > 0);
+           (unsigned int)threadPool.activeThreads.load() > 0);
 
-    ThreadPool::Wait(scene.threadPool);
+    ThreadPool::Wait(threadPool);
 
     int64_t time1, time2;
     {

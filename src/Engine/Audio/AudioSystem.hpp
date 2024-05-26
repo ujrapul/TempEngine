@@ -3,9 +3,7 @@
 
 #pragma once
 
-#include "Array_fwd.hpp"
-#include "String.hpp"
-#include "STDPCH.hpp"
+#include "STDPCH.hpp" // IWYU pragma: keep
 
 const int MAX_AUDIO_FILES = 100;
 
@@ -21,11 +19,11 @@ namespace Temp::AudioSystem
   };
 
   void ReadAudioFiles(Data& data, const GlobalDynamicArray<GlobalString>& files);
-  void PlayAudio(Data& data, int i, std::atomic<bool>& stopHandle);
-  void PlayAudioLoop(Data& data, int i, std::atomic<bool>& stopHandle);
+  void PlayAudio(Data& data, int audioIndex, std::atomic<bool>& stopHandle);
+  void PlayAudioLoop(Data& data, int audioIndex, std::atomic<bool>& stopHandle);
   // Should be given as decimal between 0 and 1
   void ChangeMasterVolume(float volume);
   // Should be given as decimal between 0 and 1
-  void ChangeVolume(Data& data, int i, float volume);
+  void ChangeVolume(Data& data, int audioIndex, float volume);
   void Destruct(Data& data);
 }

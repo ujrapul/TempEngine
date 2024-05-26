@@ -41,7 +41,7 @@ namespace Temp::Component::Hoverable
     Drawable::UpdateData(hoverable.drawable);
     Drawable::Construct(hoverable.drawable,
                         Render::EditorShaderIdx::HOVERABLE,
-                        GL_DYNAMIC_DRAW,
+                        GL_STATIC_DRAW,
                         {2},
                         2);
     Drawable::SetTranslate(hoverable.drawable, {0});

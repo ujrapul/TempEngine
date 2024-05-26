@@ -15,7 +15,7 @@
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 
-#include "Math_impl.hpp"
+#include "Math_impl.hpp" // IWYU pragma: keep
 #include "STDPCH.hpp"
 
 namespace Temp::Math

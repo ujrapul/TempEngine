@@ -33,10 +33,15 @@ namespace Temp
       void* spawnData{nullptr};
     };
 
+    struct PathData
+    {
+      GlobalPath path;
+      time_t writeTime;
+    };
+
     struct TaskData
     {
-      std::tuple<std::filesystem::path, std::filesystem::file_time_type>* file{nullptr};
-      std::tuple<std::filesystem::path, std::filesystem::file_time_type>* dllLockFile{nullptr};
+      PathData* file{nullptr};
     };
 
     // Exists only because I'm lazy
@@ -48,12 +53,14 @@ namespace Temp
     float deltaTime{};
     float time{};
 #ifdef DEBUG
+    GlobalPath dllLockFileEntry = (ApplicationDirectory() / "lock.file").c_str();
+    PathData dllLockFile = {dllLockFileEntry.c_str(), dllLockFileEntry.LastWriteTime()};
     ThreadPool::Data threadPool{};
     std::thread hotReloadThread{};
-    std::unordered_set<int> shadersToReload{};
+    GlobalHashMap<int, bool, 64> shadersToReload{};
     GlobalDynamicArray<String> levelsToReload{};
-    GlobalDynamicArray<std::tuple<std::filesystem::path, std::filesystem::file_time_type>> shaders{};
-    GlobalDynamicArray<std::tuple<std::filesystem::path, std::filesystem::file_time_type>> dlls{};
+    GlobalDynamicArray<PathData> shaders{};
+    GlobalDynamicArray<PathData> dlls{};
     GlobalDynamicArray<void*> shaderTaskDatas;
     GlobalDynamicArray<void*> dllTaskDatas;
     std::atomic<bool> stopHotReloadThread{false};
@@ -63,52 +70,36 @@ namespace Temp
 #ifdef DEBUG
     void HotReloadThread()
     {
-      std::tuple<std::filesystem::path, std::filesystem::file_time_type> dllLockFile{};
-      auto dllLockFileEntry = std::filesystem::directory_entry(ApplicationDirectory() /
-                                                               "lock.file");
-      dllLockFile = std::make_tuple(dllLockFileEntry,
-                                    std::filesystem::last_write_time(dllLockFileEntry));
-
-      for (size_t i = 0; i < shaders.size; ++i)
-      {
-        *static_cast<TaskData*>(shaderTaskDatas[i]) = {&shaders[i], &dllLockFile};
-      }
-
-      for (size_t i = 0; i < dlls.size; ++i)
-      {
-        *static_cast<TaskData*>(shaderTaskDatas[i]) = {&dlls[i], &dllLockFile};
-      }
-
       static auto shaderF = [](void* data) {
           using namespace Render;
           static std::mutex mtx{};
           auto& shader = *static_cast<TaskData*>(data)->file;
-          auto shaderTime = std::filesystem::last_write_time(std::get<0>(shader));
-          if (shaderTime != std::get<1>(shader))
+          auto shaderTime = shader.path.LastWriteTime();
+          if (shaderTime != shader.writeTime)
           {
-            std::get<1>(shader) = shaderTime;
+            shader.writeTime = shaderTime;
             auto globalShaderFiles(GlobalShaderFiles());
             auto it = std::find(globalShaderFiles.begin(),
                                 globalShaderFiles.end(),
-                                std::get<0>(shader).c_str());
+                                shader.path.buffer.c_str());
             if (it != globalShaderFiles.end())
             {
               std::lock_guard<std::mutex> lock(mtx);
               for (int i = 0; i < ShaderIdx::MAX; ++i)
               {
-                shadersToReload.insert(i);
+                shadersToReload.Insert(i);
               }
             }
             else
             {
               size_t pos = std::find(ShaderFiles().begin(),
                                      ShaderFiles().end(),
-                                     std::get<0>(shader).filename().string()) -
+                                     shader.path.FileName<MemoryManager::Data::THREAD_TEMP>()) -
                            ShaderFiles().begin();
               if (pos < ShaderFiles().size)
               {
                 std::lock_guard<std::mutex> lock(mtx);
-                shadersToReload.insert((int)pos);
+                shadersToReload.Insert((int)pos);
               }
             }
             reload = true;
@@ -118,19 +109,18 @@ namespace Temp
       static auto dllF = [](void* data) {
           static std::mutex mtx{};
           auto& dll = *static_cast<TaskData*>(data)->file;
-          auto& dllLockFile = *static_cast<TaskData*>(data)->dllLockFile;
-          auto lockFileTime = std::filesystem::last_write_time(std::get<0>(dllLockFile));
-          if (lockFileTime != std::get<1>(dllLockFile))
+          auto lockFileTime = dllLockFile.path.LastWriteTime();
+          if (lockFileTime != dllLockFile.writeTime)
           {
-            std::get<1>(dllLockFile) = lockFileTime;
-            auto dllTime = std::filesystem::last_write_time(std::get<0>(dll));
-            if (dllTime != std::get<1>(dll))
+            dllLockFile.writeTime = lockFileTime;
+            auto dllTime = dll.path.LastWriteTime();
+            if (dllTime != dll.writeTime)
             {
-              std::get<1>(dll) = dllTime;
+              dll.writeTime = dllTime;
               std::lock_guard<std::mutex> lock(mtx);
-              String fileName = std::get<0>(dll).filename().string().c_str();
+              ThreadedString fileName = dll.path.FileName<MemoryManager::Data::THREAD_TEMP>();
               LTrim(RTrim(fileName, ".so"), "lib");
-              levelsToReload.PushBack(std::move(fileName));
+              levelsToReload.PushBack(fileName.c_str());
               reload = true;
             }
           }
@@ -185,24 +175,34 @@ namespace Temp
     Render::Initialize(*scene, windowName, windowX, windowY);
 
 #ifdef DEBUG
-    for (const auto& entry : std::filesystem::directory_iterator(AssetsDirectory() / "Shaders"))
+    for (const auto& entry : DirectoryContents((AssetsDirectory() / "Shaders").buffer.c_str()))
     {
-      if (!entry.exists())
+      if (!entry.Exists())
       {
         continue;
       }
-      shaders.PushBack(std::make_tuple(entry, std::filesystem::last_write_time(entry)));
+      shaders.PushBack({entry.c_str(), entry.LastWriteTime()});
       shaderTaskDatas.PushBack(MemoryManager::CreateGlobal<TaskData>());
     }
 
-    for (const auto& entry : std::filesystem::directory_iterator(ApplicationDirectory()))
+    for (const auto& entry : DirectoryContents(ApplicationDirectory().buffer.c_str()))
     {
-      if (!entry.exists() || !entry.path().string().ends_with(".so"))
+      if (!entry.Exists() || !entry.buffer.ends_with(".so"))
       {
         continue;
       }
-      dlls.PushBack(std::make_tuple(entry, std::filesystem::last_write_time(entry)));
+      dlls.PushBack({entry.c_str(), entry.LastWriteTime()});
       dllTaskDatas.PushBack(MemoryManager::CreateGlobal<TaskData>());
+    }
+
+    for (size_t i = 0; i < shaders.size; ++i)
+    {
+      shaderTaskDatas.PushBack(MemoryManager::CreateGlobal<TaskData>(&shaders[i]));
+    }
+
+    for (size_t i = 0; i < dlls.size; ++i)
+    {
+      dllTaskDatas.PushBack(MemoryManager::CreateGlobal<TaskData>(&dlls[i]));
     }
     ThreadPool::Initialize(threadPool);
 
@@ -256,14 +256,17 @@ namespace Temp
     // Hot reload shaders
     if (reload)
     {
-      if (shadersToReload.size() > 0)
+      if (!shadersToReload.Empty())
       {
         Render::OpenGLWrapper::LoadShaders();
-        for (auto shaderIdx : shadersToReload)
+        for (auto& shaderIdx : shadersToReload)
         {
-          Scene::DrawReload(*scene, shaderIdx);
+          if (shaderIdx.hash != UINT8_MAX)
+          {
+            Scene::DrawReload(*scene, shaderIdx.key);
+          }
         }
-        shadersToReload.clear();
+        shadersToReload.Clear();
       }
       while (levelsToReload.size > 0)
       {
@@ -272,9 +275,9 @@ namespace Temp
         {
           for (auto& level : levelsToReload)
           {
-            if (level.find(copyNextScene->name.c_str()) != std::string::npos)
+            if (level.find(copyNextScene->name.c_str()) != SIZE_MAX)
             {
-              Scene::LoadSceneFnsFromDynamicLibrary(std::string(copyNextScene->name.c_str()) + "Level", *copyNextScene);
+              Scene::LoadSceneFnsFromDynamicLibrary((String(copyNextScene->name.c_str()) + "Level").c_str(), *copyNextScene);
             }
           }
           copyNextScene = copyNextScene->nextScene;

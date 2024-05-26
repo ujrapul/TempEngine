@@ -3,15 +3,15 @@
 
 #include "LevelSerializer.hpp"
 #include "EntityType.hpp"
+#include "FileWriter.hpp"
 #include "HashMap.hpp"
 #include "Logger.hpp"
 #include "MemoryManager.hpp"
-#include "Shader.hpp"
+#include "Scene.hpp"
 #include "TextBox.hpp"
 #include "TextButton.hpp"
 
 #include "GameLevelSerializer.hpp"
-#include <string>
 
 // clang-format off
 namespace Temp::LevelSerializer
@@ -108,7 +108,7 @@ namespace Temp::LevelSerializer
 
     void SerializeObject(const SceneObject::Data& object,
                          GlobalSerializeData& data,
-                         const std::string& indent = "")
+                         const String& indent = "")
     {
       data.f << indent << "  " << SerializeString<Type::NAME>() << ": " << object.name << "\n"
 #ifdef EDITOR
@@ -124,7 +124,7 @@ namespace Temp::LevelSerializer
     void SerializeTextBox(const SceneObject::Data& object,
                           const TextBox::Data* textBox,
                           GlobalSerializeData& data,
-                          const std::string& indent = "")
+                          const String& indent = "")
     {
       const auto& position = Scene::Get<Component::Type::POSITION2D>(data.scene, textBox->entity);
       const auto& scale = Scene::Get<Component::Type::SCALE>(data.scene, textBox->entity);
@@ -142,7 +142,7 @@ namespace Temp::LevelSerializer
 
     void SerializeHoverable(const Component::Hoverable::Data* hoverable,
                             GlobalSerializeData& data,
-                            const std::string& indent = "")
+                            const String& indent = "")
     {
       data.f << indent << "Hoverable\n"
              << indent << "{\n"
@@ -170,7 +170,7 @@ namespace Temp::LevelSerializer
 
     void SerializeTextBox(const SceneObject::Data& object,
                           GlobalSerializeData& data,
-                          const std::string& indent = "")
+                          const String& indent = "")
     {
       auto* textBox = static_cast<TextBox::Data*>(object.data);
       SerializeTextBox(object, textBox, data, indent);
@@ -200,15 +200,11 @@ namespace Temp::LevelSerializer
     DeserializeTable["Max"] = EntityType::MAX;
 
     int lineNumber = 0;
-    scene.objects.Clear();
-    scene.objectsNameIdxTable.Clear();
+    Scene::ResetAllocatedTypes(scene);
     auto path = AssetsDirectory() / "Levels" / file;
     String contents;
-    try
-    {
-      ReadFile(contents, path.c_str());
-    }
-    catch (const std::exception&)
+    String output;
+    if (!ReadFile(contents, path.buffer.c_str(), output))
     {
       Logger::LogErr(String("[Deserialize] Failed to deserialize file: ") + file);
       return false;
@@ -266,7 +262,7 @@ namespace Temp::LevelSerializer
 
   void Serialize(Scene::Data& scene, const char* file)
   {
-    std::ofstream f(file);
+    FileWriter f(file);
     GlobalSerializeData data{scene, f};
     f << "// " << scene.sceneFns->name << ".level\n";
     for (const auto& object : scene.objects)
@@ -294,11 +290,8 @@ namespace Temp::LevelSerializer
   {
     auto path = AssetsDirectory() / "Levels" / file;
     String contents;
-    try
-    {
-      ReadFile(contents, path.c_str());
-    }
-    catch (const std::exception&)
+    String output;
+    if (!ReadFile(contents, path.buffer.c_str(), output))
     {
       Logger::LogErr(String("[Deserialize] Failed to deserialize file: ") + file);
       return false;

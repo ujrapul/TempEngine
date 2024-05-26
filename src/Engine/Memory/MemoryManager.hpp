@@ -33,6 +33,7 @@ namespace Temp::MemoryManager
     size_t threadTempDataSize{0};
     // size_t sceneDataSize{0};
     std::mutex mtx;
+    std::mutex threadTempInnerMtx;
 
     Data()
     {
@@ -85,6 +86,8 @@ namespace Temp::MemoryManager
           ++tempDataSize;
           return LinearAllocator::Alloc(tempArena, size);
         case THREAD_TEMP:
+        {
+          std::scoped_lock<std::mutex> lock(threadTempInnerMtx);
           if (threadTempDataSize == 0)
           {
             threadTempData = LinearAllocator::TempMemoryBegin(threadTempArena);
@@ -93,6 +96,7 @@ namespace Temp::MemoryManager
           // Logger::LogErr("BEG: " + std::to_string(threadTempDataSize));
           // Logger::LogErr("BEG THREAD TMP Memory Usage in MB: " + std::to_string(threadTempArena.offset / 1000000.f));
           return LinearAllocator::Alloc(threadTempArena, size);
+        }
         case MAX:
         default:
           return nullptr;
@@ -139,6 +143,8 @@ namespace Temp::MemoryManager
           // Logger::LogErr("End Temp Memory Usage in MB:   " + std::to_string(tempArena.offset / 1000000.f));
           break;
         case THREAD_TEMP:
+        {
+          std::scoped_lock<std::mutex> lock(threadTempInnerMtx);
           --threadTempDataSize;
           assert(threadTempDataSize != SIZE_MAX);
           if (threadTempDataSize == 0)
@@ -149,6 +155,7 @@ namespace Temp::MemoryManager
           // Logger::LogErr("END: " + std::to_string(threadTempDataSize));
           // Logger::LogErr("END THREAD TMP Memory Usage in MB: " + std::to_string(threadTempArena.offset / 1000000.f));
           break;
+        }
         case MAX:
         default:
           break;

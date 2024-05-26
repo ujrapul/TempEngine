@@ -7,7 +7,6 @@
 #include "Drawable.hpp"
 #include "OpenGLWrapper.hpp"
 #include "Scene.hpp"
-#include "Shader.hpp"
 
 namespace Temp::EditorGrid
 {
@@ -53,12 +52,15 @@ namespace Temp::EditorGrid
     using namespace Temp::Render;
 
     auto& drawable = Scene::Get<Temp::Component::Type::DRAWABLE>(scene, editorGrid.entity);
-    Component::Drawable::UpdateData(drawable);
     Component::Drawable::Construct(drawable, shaderType, GL_STATIC_DRAW, {2}, 2);
+    Component::Drawable::UpdateData(drawable);
     OpenGLWrapper::UnbindBuffers();
   }
 
-  void DrawUpdate(Scene::Data&, Data&) {}
+  void DrawUpdate(Scene::Data& scene, Component::Drawable::Data& drawable, Data& editorGrid)
+  {
+    Component::Drawable::UpdateData(drawable);
+  }
 
   void DrawDestruct(Scene::Data&, Data&)
   {

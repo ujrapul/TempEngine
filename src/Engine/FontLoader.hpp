@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "Math.hpp"
+#include "STDPCH.hpp"
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
 #else

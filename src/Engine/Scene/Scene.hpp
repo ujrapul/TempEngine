@@ -3,14 +3,13 @@
 
 #pragma once
 
+#include "STDPCH.hpp"
 #include "Array_fwd.hpp"
 #include "Entity.hpp"
 #include "EntityData.hpp"
 #include "SceneObject.hpp"
 #include "String.hpp"
-#include "ThreadPool.hpp"
 #include "HashMap.hpp"
-#include <utility>
 
 namespace Temp::SceneObject
 {
@@ -35,7 +34,7 @@ namespace Temp::Scene
 
   inline void NoOpScene(struct Data&) {}
 
-  void Construct(Data& scene);
+  void Construct(Data& scene, bool resetData = true);
   void Update(Data& scene, float deltaTime);
   // Only here for Performance Testing!
   void UpdateLegacy(Data& scene, float deltaTime);
@@ -51,8 +50,10 @@ namespace Temp::Scene
 
   struct RenderData
   {
-    RenderFunction func;
-    void* data;
+    RenderFunction func{nullptr};
+    void* data{nullptr};
+
+    constexpr bool operator==(const RenderData&) const = default;
   };
 
   struct SceneFns
@@ -72,14 +73,17 @@ namespace Temp::Scene
 
   struct Data
   {
+    //////////////////////////////////////////////////////////////////////////
+    /// All allocated types must be reset in ResetAllocatedTypes function! ///
+    //////////////////////////////////////////////////////////////////////////
     SceneDynamicArray<SceneObject::Data> objects{};
-    SceneStringHashMap<int> objectsNameIdxTable{};
+    SceneStringHashMap<int, Entity::MAX> objectsNameIdxTable{};
     SceneDynamicArray<int> entityObjectIdxTable{};
-    std::queue<RenderData> renderQueue{};
+    SceneQueue<RenderData> renderQueue{};
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
     Entity::Data entityData{};
     State state{State::ENTER};
-    // Threadpool should be recreated when assigned or copied
-    ThreadPool::Data threadPool{};
     SceneFns* sceneFns{nullptr};
     void* gameData{nullptr};
 
@@ -124,6 +128,7 @@ namespace Temp::Scene
 
   void Initialize(Data& scene);
   void Destroy(Data& scene);
+  void ResetAllocatedTypes(Data& scene);
 
   Entity::id CreateEntity(Data& scene);
   void DestroyEntity(Data& scene, Entity::id entity);
@@ -184,7 +189,5 @@ namespace Temp::Scene
     return Entity::ComponentBits(scene.entityData, entity);
   }
 
-  void LoadSceneFnsFromDynamicLibrary(const std::string& name, SceneFns& sceneFns);
+  void LoadSceneFnsFromDynamicLibrary(const char* name, SceneFns& sceneFns);
 }
-
-extern template std::_Deque_base<Temp::Scene::RenderData, std::allocator<Temp::Scene::RenderData> >::_Deque_base::~_Deque_base();

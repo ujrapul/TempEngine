@@ -4,7 +4,6 @@
 #include "Editor.hpp"
 #include "ComponentType.hpp"
 #include "Engine.hpp"
-#include "Entity.hpp"
 #include "EntityType.hpp"
 #include "Event.hpp"
 #include "FontLoader.hpp"
@@ -271,8 +270,10 @@ namespace Temp::Editor
       if (saveSucceeded)
       {
         ImGui::Spacing();
-        ImGui::Text("%s",
-                    std::string("Successfully saved " + std::string(scene.sceneFns->name.c_str()) + ".level").c_str());
+        ImGui::Text(
+          "%s",
+          (String("Successfully saved ") + String(scene.sceneFns->name.c_str()) + String(".level"))
+            .c_str());
         saveSucceededTime += Global::DeltaTime();
         if (saveSucceededTime > 2.f)
         {
@@ -283,8 +284,10 @@ namespace Temp::Editor
       if (loadSucceeded)
       {
         ImGui::Spacing();
-        ImGui::Text("%s",
-                    std::string("Successfully loaded " + std::string(scene.sceneFns->name.c_str()) + ".level").c_str());
+        ImGui::Text(
+          "%s",
+          (String("Successfully loaded ") + String(scene.sceneFns->name.c_str()) + String(".level"))
+            .c_str());
         loadSucceededTime += Global::DeltaTime();
         if (loadSucceededTime > 2.f)
         {
@@ -300,12 +303,12 @@ namespace Temp::Editor
         scene.sceneFns->name = saveText.data();
         LevelSerializer::Serialize(
           scene,
-          (AssetsDirectory() / "Levels" / (String(scene.sceneFns->name.c_str()) + ".level").c_str()).c_str());
+          (AssetsDirectory() / "Levels" / (String(scene.sceneFns->name.c_str()) + ".level").c_str()).buffer.c_str());
         saveSucceeded = true;
       }
       else if (load)
       {
-        scene.sceneFns->name = loadText.data();
+        scene.sceneFns->name.Replace(loadText.data());
         if (LevelSerializer::LevelExists((String(scene.sceneFns->name.c_str()) + ".level").c_str()))
         {
           EventData.draggable = nullptr;
@@ -314,7 +317,7 @@ namespace Temp::Editor
           Scene::Destruct(scene);
           if (LevelSerializer::Deserialize(scene, (String(scene.sceneFns->name.c_str()) + ".level").c_str()))
           {
-            Scene::Construct(scene);
+            Scene::Construct(scene, false);
             Scene::DrawConstruct(scene);
             loadSucceeded = true;
             loadSucceededTime = 0;
@@ -410,7 +413,8 @@ namespace Temp::Editor
         {
           auto* textBox = static_cast<TextBox::Data*>(EventData.selectedObject->data);
           PropertiesText(*textBox);
-          TextBox::UpdateText(scene, *textBox, textBox->text.c_str());
+          String temp(textBox->text.c_str());
+          TextBox::UpdateText(scene, *textBox, temp.c_str());
           PropertiesTextBox(scene, *textBox);
           PropertiesFont(scene, *textBox);
         }
@@ -419,7 +423,8 @@ namespace Temp::Editor
         {
           auto* textButton = static_cast<TextButton::Data*>(EventData.selectedObject->data);
           PropertiesText(textButton->textBox);
-          TextButton::UpdateText(scene, *textButton, textButton->textBox.text.c_str());
+          String temp(textButton->textBox.text.c_str());
+          TextButton::UpdateText(scene, *textButton, temp.c_str());
           PropertiesTextBox(scene, textButton->textBox);
           PropertiesFont(scene, textButton->textBox);
         }

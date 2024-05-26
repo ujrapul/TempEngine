@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "Math.hpp"
+#include "STDPCH.hpp" // IWYU pragma: keep
 #include "MemoryManager.hpp"
 #ifdef EDITOR
 #include "Drawable.hpp"

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "Array_impl.hpp"
+#include "Array_impl.hpp" // IWYU pragma: keep
 #include "MemoryManager.hpp"
 
 namespace Temp

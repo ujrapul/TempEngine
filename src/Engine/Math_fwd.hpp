@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "Array.hpp"
+#include "Array.hpp" // IWYU pragma: keep
 #ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable : 4201)
@@ -16,7 +16,8 @@
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 
-#include "STDPCH.hpp"
+#include <immintrin.h>
+#include <ostream>
 
 namespace Temp::Math
 {

@@ -16,6 +16,8 @@
 #include <Windows.h>
 #endif
 
+#include <iostream>
+
 int main()
 {
   using namespace Temp;

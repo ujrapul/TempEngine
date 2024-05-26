@@ -5,9 +5,9 @@
 
 #if defined(EDITOR) || defined(DEBUG)
 #include "imgui.h"
-#include "imgui_internal.h"
+#include "imgui_internal.h" // IWYU pragma: keep
 #ifdef __linux
-#include "imgui_impl_opengl3.h"
+#include "imgui_impl_opengl3.h" // IWYU pragma: keep
 #endif
 #endif
 

@@ -22,9 +22,9 @@ namespace Temp::SceneObject
       ComponentBits componentBits;
     };
 
-    std::unordered_map<Entity::id, Cache> activeDataCache;
+    GlobalHashMap<Entity::id, Cache> activeDataCache(true);
 
-    void InternalDestructUpdate(Data& object) { activeDataCache.erase(object.entity); }
+    void InternalDestructUpdate(Data& object) { activeDataCache.Remove(object.entity); }
 
     template <int type, typename T, typename C = Null>
     void Init()
@@ -99,7 +99,8 @@ namespace Temp::SceneObject
 
   void SetActive(Scene::Data& scene, Data& object, bool active)
   {
-    if (active && activeDataCache.contains(object.entity))
+    bool contains = activeDataCache.Contains(object.entity);
+    if (active && contains)
     {
       ComponentBits componentBits = activeDataCache[object.entity].componentBits;
       if (Test(componentBits, Component::Type::HOVERABLE))
@@ -114,9 +115,9 @@ namespace Temp::SceneObject
       {
         Scene::RemoveCacheComponent<Component::Type::DRAWABLE>(scene, object.entity);
       }
-      activeDataCache.erase(object.entity);
+      activeDataCache.Remove(object.entity);
     }
-    else if (!active && !activeDataCache.contains(object.entity))
+    else if (!active && !contains)
     {
       ComponentBits componentBits = Scene::ComponentBits(scene, object.entity);
       activeDataCache[object.entity] = {
@@ -139,7 +140,7 @@ namespace Temp::SceneObject
 
   void Init() { Init<ENUM_MIN, ENUM_MAX>(); }
 
-  void ClearActiveDataCache() { activeDataCache.clear(); }
+  void ClearActiveDataCache() { activeDataCache.Clear(); }
 
   void Translate(Scene::Data& scene, const SceneObject::Data& object, const Math::Vec3f& position)
   {

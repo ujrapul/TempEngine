@@ -4,11 +4,10 @@
 #pragma once
 
 #include "Array_fwd.hpp"
-#include "EngineUtils.hpp"
+#include "EngineUtils.hpp" // IWYU pragma: keep
 #include "Math.hpp"
 #include "Logger.hpp"
 #include "String.hpp"
-#include <climits>
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
 #else
@@ -30,15 +29,18 @@ namespace Temp::Render::OpenGLWrapper
 {
   struct GLObjectData
   {
-    GLuint VAO{0};
-    GLuint VBO{0};
-    GLuint EBO{0};
+    GLuint VAO{UINT_MAX};
+    GLuint VBO{UINT_MAX};
+    GLuint EBO{UINT_MAX};
+    int BufferDraw{GL_STATIC_DRAW};
+
+    constexpr bool operator==(const GLObjectData& other) const = default;
   };
 
   // DO NOT USE OUTSIDE OPENGLWRAPPER!
   inline GlobalDynamicArray<GlobalDynamicArray<const char*>> globalShaders;
   inline GlobalDynamicArray<GLuint> globalShaderPrograms;
-  inline GlobalDynamicArray<GLObjectData> globalFreeGLObjects;
+  inline GlobalArray<GlobalDynamicArray<GLObjectData>, 1024> globalFreeGLObjects;
 
   void ClearShaderStrings();
   void LoadShaders();
@@ -154,7 +156,7 @@ namespace Temp::Render::OpenGLWrapper
     GLint size = 0;
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-    if (size != (GLint)(typeSize * arraySize) || size == 0)
+    if (size != (GLint)(typeSize * arraySize) || size == 0 || BufferDraw == GL_STATIC_DRAW)
     {
       glBufferData(GL_ARRAY_BUFFER, typeSize * arraySize, data, BufferDraw);
     }
@@ -187,7 +189,7 @@ namespace Temp::Render::OpenGLWrapper
     GLint size = 0;
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-    if (size != (GLint)(sizeof(GLuint) * arraySize) || size == 0)
+    if (size != (GLint)(sizeof(GLuint) * arraySize) || size == 0  || BufferDraw == GL_STATIC_DRAW)
     {
       glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * arraySize, indices, BufferDraw);
     }

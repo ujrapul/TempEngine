@@ -3,12 +3,11 @@
 
 #include "Sprite.hpp"
 #include "Drawable.hpp"
-#include "EngineUtils.hpp"
 #include "Hoverable.hpp"
 #include "Logger.hpp"
-#include "RenderUtils.hpp"
 #include "Scene.hpp"
 #include "TGA.hpp"
+#include "OpenGLWrapper.hpp"
 
 namespace Temp::Sprite
 {

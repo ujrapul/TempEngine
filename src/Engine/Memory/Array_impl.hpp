@@ -7,10 +7,8 @@
 #include "Logger.hpp"
 #include "MemoryManager.hpp"
 #include "MemoryUtils.hpp"
-#include "String.hpp"
 #include <cstddef>
 #include <cstdint>
-#include <exception>
 #include <initializer_list>
 #include <mutex>
 
@@ -173,6 +171,42 @@ namespace Temp
   constexpr void Array<T, SizeOfArray, Type>::swap(Array& other)
   {
     Swap(*this, other);
+  }
+
+  template <typename T, int SizeOfArray, MemoryManager::Data::Type Type>
+  constexpr T* Array<T, SizeOfArray, Type>::begin()
+  {
+    return buffer;
+  }
+
+  template <typename T, int SizeOfArray, MemoryManager::Data::Type Type>
+  constexpr T* Array<T, SizeOfArray, Type>::end()
+  {
+    return buffer + size;
+  }
+
+  template <typename T, int SizeOfArray, MemoryManager::Data::Type Type>
+  constexpr const T* Array<T, SizeOfArray, Type>::begin() const
+  {
+    return buffer;
+  }
+
+  template <typename T, int SizeOfArray, MemoryManager::Data::Type Type>
+  constexpr const T* Array<T, SizeOfArray, Type>::end() const
+  {
+    return buffer + size;
+  }
+
+  template <typename T, int SizeOfArray, MemoryManager::Data::Type Type>
+  constexpr const T* Array<T, SizeOfArray, Type>::cbegin() const
+  {
+    return buffer;
+  }
+
+  template <typename T, int SizeOfArray, MemoryManager::Data::Type Type>
+  constexpr const T* Array<T, SizeOfArray, Type>::cend() const
+  {
+    return buffer + size;
   }
 
   ////////////////////////////////////////////
@@ -476,7 +510,7 @@ namespace Temp
     if (size == 0)
     {
       Logger::LogErr("Cannot pop back for this DynamicArray anymore!");
-      throw std::exception();
+      assert(false);
     }
     back().~T();
     Buffer()[--size] = {};
@@ -611,6 +645,10 @@ namespace Temp
   template <typename T, MemoryManager::Data::Type Type>
   constexpr size_t DynamicArray<T, Type>::Find(const T& value) const
   {
+    if (!buffer)
+    {
+      return SIZE_MAX;
+    }
     for (size_t i = 0; i < size; ++i)
     {
       if (buffer[i] == value)

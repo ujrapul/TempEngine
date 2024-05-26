@@ -12,11 +12,11 @@
 #include "EntityData.hpp"
 #include "HashMap.hpp"
 #include "Hoverable.hpp"
+#ifndef EDITOR
 #include "LevelSerializer.hpp"
+#endif
 #include "Logger.hpp"
-#include "Math.hpp"
 #include "MemoryManager.hpp"
-#include "OpenGLWrapper.hpp"
 #include "SceneObject.hpp"
 #include "Shader.hpp"
 #include "TextBox.hpp"
@@ -27,6 +27,8 @@ namespace Temp::Scene
 {
   namespace
   {
+    ThreadPool::Data threadPool{};
+
 #ifdef EDITOR
     EditorGrid::Data editorGrid;
 #endif
@@ -38,11 +40,11 @@ namespace Temp::Scene
 
     void DequeueRender(Scene::Data& scene)
     {
-      while (!scene.renderQueue.empty())
+      while (!scene.renderQueue.Empty())
       {
-        auto render = scene.renderQueue.front();
+        auto& render = scene.renderQueue.Front();
         render.func(scene, render.data);
-        scene.renderQueue.pop();
+        scene.renderQueue.Pop();
       }
     }
 
@@ -61,11 +63,12 @@ namespace Temp::Scene
     }
   }
 
-  void Construct(Data& scene)
+  void Construct(Data& scene, bool resetData)
   {
-    scene.objects = SceneDynamicArray<SceneObject::Data>(true, Entity::MAX);
-    scene.objectsNameIdxTable = SceneStringHashMap<int>();
-    scene.entityObjectIdxTable = SceneDynamicArray<int>(true, Entity::MAX);
+    if (resetData)
+    {
+      Scene::ResetAllocatedTypes(scene);
+    }
 #ifndef EDITOR
     isDeserialized = LevelSerializer::Deserialize(scene, (String(scene.sceneFns->name.c_str()) + ".level").c_str());
     if (isDeserialized)
@@ -145,8 +148,8 @@ namespace Temp::Scene
         TaskData* taskData = static_cast<TaskData*>(data);
         Component::Updateable::Update(*taskData->scene, *taskData->updateable, taskData->deltaTime);
       };
-      ThreadPool::EnqueueForEach(scene.threadPool, tasks.buffer, f, tasks.size);
-      ThreadPool::Wait(scene.threadPool);
+      ThreadPool::EnqueueForEach(threadPool, tasks.buffer, f, tasks.size);
+      ThreadPool::Wait(threadPool);
     }
 
     scene.sceneFns->UpdateFunc(scene, deltaTime);
@@ -226,13 +229,21 @@ namespace Temp::Scene
   void Initialize(Data& scene)
   {
     Entity::Init(scene.entityData);
-    ThreadPool::Initialize(scene.threadPool);
+    ThreadPool::Initialize(threadPool);
   }
 
   void Destroy(Data& scene)
   {
     Entity::Destruct(scene.entityData);
-    ThreadPool::Destruct(scene.threadPool);
+    ThreadPool::Destruct(threadPool);
+  }
+
+  void ResetAllocatedTypes(Data& scene)
+  {
+    scene.objects = SceneDynamicArray<SceneObject::Data>(true, Entity::MAX);
+    scene.objectsNameIdxTable = SceneStringHashMap<int, Entity::MAX>();
+    scene.entityObjectIdxTable = SceneDynamicArray<int>(true, Entity::MAX);
+    scene.renderQueue = SceneQueue<RenderData>();
   }
 
   Entity::id CreateEntity(Data& scene) { return Entity::Create(scene.entityData); }
@@ -241,7 +252,7 @@ namespace Temp::Scene
 
   void EnqueueRender(Data& scene, RenderFunction func, void* data)
   {
-    scene.renderQueue.push({func, data});
+    scene.renderQueue.Push({func, data});
   }
 
   void Draw(Data& scene)
@@ -252,16 +263,22 @@ namespace Temp::Scene
     auto& drawableArray = Scene::GetComponentArray<Component::Type::DRAWABLE>(scene);
     for (size_t i = 0; i < drawableArray.size; ++i)
     {
+#ifdef EDITOR
+      if (drawableArray.array[i].entity == editorGrid.entity)
+      {
+        // A hack to get the editor grid to render
+        static SceneObject::Data obj;
+        Component::Drawable::Draw(
+          scene,
+          obj,
+          drawableArray.array[i]);
+        continue;
+      }
+#endif
       Component::Drawable::Draw(
         scene,
         scene.objects[scene.entityObjectIdxTable[drawableArray.array[i].entity]],
         drawableArray.array[i]);
-#ifdef EDITOR
-      if (drawableArray.array[i].entity == editorGrid.entity)
-      {
-        continue;
-      }
-#endif
       // Component::Drawable::DrawUpdate(
       //   scene,
       //   scene.objects[scene.entityObjectIdxTable[drawableArray.array[i].entity]],
@@ -281,7 +298,7 @@ namespace Temp::Scene
     Temp::Camera::UpdateFontOrthoScale(scene, (720.f / Temp::Camera::GetHeight()));
   }
 
-  void ClearRender(Data& scene) { scene.renderQueue = {}; }
+  void ClearRender(Data& scene) { scene.renderQueue.Clear(); }
 
   SceneObject::Data& GetObject(Scene::Data& scene, const char* name)
   {
@@ -385,13 +402,13 @@ namespace Temp::Scene
     object.name = name;
   }
 
-  void LoadSceneFnsFromDynamicLibrary(const std::string& name, SceneFns& sceneFns)
+  void LoadSceneFnsFromDynamicLibrary(const char* name, SceneFns& sceneFns)
   {
-    static std::unordered_map<std::string, void*> libHandles;
+    static GlobalStringHashMap<void*> libHandles;
     void* libHandle;
-    if (libHandles.contains(name))
+    if (libHandles.Contains(name))
     {
-      libHandle = libHandles.at(name);
+      libHandle = libHandles[name];
     }
     else
     {
@@ -408,7 +425,7 @@ namespace Temp::Scene
     auto* CreateDynamic = (void* (*)())GetDynamicLibraryFn(libHandle, "CreateDynamic");
     if (!CreateDynamic)
     {
-      Logger::LogErr(String("[Scene] Failed to load CreateDynamic from: ") + name.c_str());
+      Logger::LogErr(String("[Scene] Failed to load CreateDynamic from: ") + name);
       CloseDynamicLibrary(libHandle);
       return;
     }
@@ -421,5 +438,3 @@ namespace Temp::Scene
     libHandles[name] = libHandle;
   }
 }
-
-template std::_Deque_base<Temp::Scene::RenderData, std::allocator<Temp::Scene::RenderData> >::_Deque_base::~_Deque_base();

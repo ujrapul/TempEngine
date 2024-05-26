@@ -55,8 +55,9 @@ namespace Temp::Logger
 
   inline const LogInterface &GetLogger()
   {
-    static const Cout cout{};
     static const Noop noop{};
+#ifdef DEBUG    
+    static const Cout cout{};
     switch (logType)
     {
     case LogType::COUT:
@@ -64,6 +65,9 @@ namespace Temp::Logger
     default:
       return noop;
     };
+#else
+    return noop;
+#endif
   }
 
   inline void Log(const char *text)

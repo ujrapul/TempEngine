@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 #include "OpenGLWrapper.hpp"
-#include "Logger.hpp"
+#include "MemoryManager.hpp"
 #include "Shader.hpp"
+#include "String.hpp"
 #include "TGA.hpp"
 #include "gl.h"
 
@@ -19,28 +20,22 @@ namespace Temp::Render::OpenGLWrapper
   {
     const char* VERT_HEADER = "#version 330\n#define VERTEX_SHADER\n";
     const char* FRAG_HEADER = "#version 330\n#define FRAGMENT_SHADER\n";
-
-    // Need to delete when passed out
-    const char* GetCommonShader()
-    {
-      const char* common = LoadFileAsString(
-        std::filesystem::path(GetShadersPath() / "Common.glsl").string().c_str());
-      return common;
-    }
+    GlobalString COMMON = LoadFileAsString<MemoryManager::Data::GLOBAL_ARENA>(
+      (GetShadersPath() / "Common.glsl").c_str());
   }
 
   void ClearShaderStrings()
   {
-    for (GlobalDynamicArray<const char*>& shaderGroup : globalShaders)
-    {
-      for (const char* string : shaderGroup)
-      {
-        if (string != VERT_HEADER && string != FRAG_HEADER)
-        {
-          delete[] string;
-        }
-      }
-    }
+    // for (GlobalDynamicArray<const char*>& shaderGroup : globalShaders)
+    // {
+    //   for (const char* string : shaderGroup)
+    //   {
+    //     if (string != VERT_HEADER && string != FRAG_HEADER && string != COMMON.c_str())
+    //     {
+    //       delete[] string;
+    //     }
+    //   }
+    // }
     globalShaders.Clear();
   }
 
@@ -53,17 +48,19 @@ namespace Temp::Render::OpenGLWrapper
     size_t i = 0;
     for (const auto& shaderFile : ShaderFiles())
     {
+      // We're operating on the assumption that these strings won't ever get cleared
+      // If we have the memory let them live for the entire lifetime of the program
       globalShaders.InsertEnd(
         {
           {
             VERT_HEADER,
-            GetCommonShader(),
-            LoadFileAsString(std::filesystem::path(shadersPath / shaderFile).string().c_str()),
+            COMMON.c_str(),
+            LoadFileAsString<MemoryManager::Data::GLOBAL_ARENA>((shadersPath / shaderFile).c_str()).c_str(),
           },
           {
             FRAG_HEADER,
-            GetCommonShader(),
-            LoadFileAsString(std::filesystem::path(shadersPath / shaderFile).string().c_str()),
+            COMMON.c_str(),
+            LoadFileAsString<MemoryManager::Data::GLOBAL_ARENA>((shadersPath / shaderFile).c_str()).c_str(),
           },
         } //
       );
@@ -101,11 +98,14 @@ namespace Temp::Render::OpenGLWrapper
     {
       CleanShader(shader);
     }
-    for (auto& GLObject : globalFreeGLObjects)
+    for (auto& objects : globalFreeGLObjects)
     {
-      CleanElementBuffer(GLObject.EBO);
-      CleanArrayBuffer(GLObject.VBO);
-      CleanArrays(GLObject.VAO);
+      for (auto& object : objects)
+      {
+        CleanElementBuffer(object.EBO);
+        CleanArrayBuffer(object.VBO);
+        CleanArrays(object.VAO);
+      }
     }
   }
 }

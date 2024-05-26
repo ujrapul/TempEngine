@@ -3,12 +3,9 @@
 
 #pragma once
 
-#include "Array.hpp"
 #include "Array_fwd.hpp"
-#include "Math.hpp"
-#include "Queue.hpp"
-#include <cstdint>
-#include <mutex>
+#include "Math.hpp" // IWYU pragma: keep
+#include "STDPCH.hpp"
 
 namespace Temp::ThreadPool
 {
@@ -27,8 +24,8 @@ namespace Temp::ThreadPool
   // Beware of atomics used in wait
   struct Data
   {
-    GlobalDynamicArray<std::thread> threads;
-    GlobalQueue<Task> tasks;
+    GlobalDynamicArray<std::thread*> threads{true, 512, nullptr};
+    GlobalQueue<Task> tasks{true, 512};
     std::mutex mtx;
     std::condition_variable condition;
     std::atomic<int> activeThreads;

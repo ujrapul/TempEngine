@@ -5,10 +5,8 @@
 
 #include "Array_fwd.hpp"
 #include "Drawable.hpp"
-#include "Engine.hpp"
 #include "EngineUtils.hpp"
 #include "FontLoader.hpp"
-#include "Logger.hpp"
 #include "Math.hpp"
 #include "Math_fwd.hpp"
 #include "Math_impl.hpp"
@@ -16,8 +14,8 @@
 #include "OpenGLWrapper.hpp"
 #include "Scene.hpp"
 #include "SceneObject.hpp"
-#include "Shader.hpp"
-#include <string>
+// #include "gl.h"
+#include <cstdint>
 #ifdef EDITOR
 #include "Hoverable.hpp"
 #endif
@@ -61,16 +59,7 @@ namespace Temp::TextBox
           characterCount = (int)string.size - i + 1;
           continue;
         }
-        Font::Character ch;
-        try
-        {
-          ch = Font::Characters(textBox.fontType)[c];
-        }
-        catch (std::exception&)
-        {
-          Logger::LogErr(String("[TextBox] Could not parse: ") + c);
-          continue;
-        }
+        const Font::Character& ch = Font::Characters(textBox.fontType)[c];
 
         float xpos = x + ch.bearing.x;
         float ypos = y - ((float)ch.size.y - ch.bearing.y);
@@ -238,7 +227,10 @@ namespace Temp::TextBox
 #endif
     Component::Drawable::UpdateData(drawable);
 
-    Component::Drawable::ConstructFont(drawable, shaderType);
+    Component::Drawable::ConstructFont(
+      drawable,
+      shaderType,
+      GL_DYNAMIC_DRAW);
     OpenGLWrapper::UnbindBuffers();
   }
 
@@ -275,21 +267,14 @@ namespace Temp::TextBox
     }
 #endif
 #ifndef DEBUG
-    try
-    {
-      PopulateVerticesIndices(scene, textBox);
+    PopulateVerticesIndices(scene, textBox);
 #ifdef EDITOR
-      if (!textBox.hasParent)
-      {
-        auto& hoverable = Scene::Get<Temp::Component::Type::HOVERABLE>(scene, textBox.entity);
-        hoverable.triangles = Triangles(scene, textBox);
-      }
-#endif
-    }
-    catch (std::exception&)
+    if (!textBox.hasParent)
     {
-      Logger::LogErr("[TextBox] Could not create TextBox. Possibly could not load font.");
+      auto& hoverable = Scene::Get<Temp::Component::Type::HOVERABLE>(scene, textBox.entity);
+      hoverable.triangles = Triangles(scene, textBox);
     }
+#endif
 #endif
 
     Scene::AddComponent<Component::Type::POSITION2D>(scene,
@@ -330,11 +315,7 @@ namespace Temp::TextBox
 #endif
   }
 
-#ifdef EDITOR
   void DrawUpdate(Scene::Data& scene, Component::Drawable::Data& drawable, Data& textBox)
-#else
-  void DrawUpdate(Scene::Data&, Component::Drawable::Data& drawable, Data& textBox)
-#endif
   {
     using namespace Temp::Render;
 
@@ -347,10 +328,7 @@ namespace Temp::TextBox
                                                    textBox.enableOutline ? 0.75f : 0.5f);
     // drawable.disableDepth = true;
 
-    // NOTE: This is referring to updating the drawable buffers manually using the OpenGLWrapper
-    // Don't know why this won't update properly if I pass textBox vertices and indices directly
-    // Removing std::move from DrawConstruct doesn't work...
-    Temp::Component::Drawable::UpdateVertexIndexBuffers(drawable, GL_DYNAMIC_DRAW);
+    Temp::Component::Drawable::UpdateVertexIndexBuffers(drawable);
     // drawable.disableDepth = false;
 
 #ifdef EDITOR
@@ -367,41 +345,37 @@ namespace Temp::TextBox
     textBox.enableOutline = enable;
   }
 
-#ifdef EDITOR
   void DrawDestruct(Scene::Data& scene, Data& textBox)
   {
+#ifdef EDITOR
     if (!textBox.hasParent)
     {
       auto& hoverable = Scene::Get<Temp::Component::Type::HOVERABLE>(scene, textBox.entity);
       Component::Hoverable::DestructDrawable(hoverable);
     }
-  }
-#else
-  void DrawDestruct(Scene::Data&, Data&) {}
 #endif
-
-  void Destruct(Scene::Data&, Data& /*textBox*/)
-  {
-    // FreeContainer(textBox.vertices);
-    // FreeContainer(textBox.indices);
   }
 
-  std::string FormatText(Data& textBox, std::string_view text, std::string_view sectionBreak)
+  void Destruct(Scene::Data&, Data& textBox)
   {
-    std::string copy{};
-    String tempStr = std::string(text).c_str();
+  }
+
+  String FormatText(Data& textBox, String& text, String& sectionBreak)
+  {
+    String copy{};
+    String tempStr = String(text).c_str();
     auto splitText = SplitString(tempStr, " ");
     int characterCount = 0;
     for (size_t i = 0; i < splitText.size; ++i)
     {
-      bool isSectionBreak = splitText[i].find(std::string(sectionBreak).c_str()) != std::string::npos;
-      bool isNewLine = splitText[i].find("\n") != std::string::npos;
+      bool isSectionBreak = splitText[i].find(String(sectionBreak).c_str()) != SIZE_MAX;
+      bool isNewLine = splitText[i].find("\n") != SIZE_MAX;
       if (isSectionBreak || isNewLine)
       {
         DynamicArray<String> splitText2;
         if (isSectionBreak)
         {
-          splitText2 = SplitString(splitText[i], sectionBreak.data());
+          splitText2 = SplitString(splitText[i], sectionBreak.c_str());
         }
         else if (isNewLine)
         {

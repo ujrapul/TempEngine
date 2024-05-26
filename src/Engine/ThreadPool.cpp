@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "ThreadPool.hpp"
-#include "ComponentData.hpp"
-#include "Entity.hpp"
-#include <thread>
 
 namespace Temp::ThreadPool
 {
@@ -43,7 +40,7 @@ namespace Temp::ThreadPool
     void AddWorker(Data& threadPool, int id)
     {
       auto f = [&threadPool, id]() { WorkerThread(threadPool, id); };
-      threadPool.threads.PushBack(std::thread(f));
+      threadPool.threads.PushBack(MemoryManager::CreateGlobal<std::thread>(std::thread(f)));
     }
 
     void Initialize(Data& threadPool, int numThreads)
@@ -52,7 +49,6 @@ namespace Temp::ThreadPool
       {
         AddWorker(threadPool, id);
       }
-      threadPool.tasks.buffer.Reserve(512);
     }
 
     void Poll(Data& threadPool)
@@ -74,9 +70,9 @@ namespace Temp::ThreadPool
       threadPool.stop = true;
     }
     threadPool.condition.notify_all();
-    for (auto& thread : threadPool.threads)
+    for (auto thread : threadPool.threads)
     {
-      thread.join();
+      thread->join();
     }
     {
       std::unique_lock<std::mutex> lock(threadPool.mtx);
@@ -99,13 +95,18 @@ namespace Temp::ThreadPool
                             Math::Max(Math::Floor(((float)outMinRange / 32 * (4 - 1) + 1)), 1);
     int upperThread = (int)((float)inValue / inMaxRange * (outMaxRange - outMinRange) +
                             outMinRange);
-    if (upperThread != (int)threadPool.threads.size)
+    if (upperThread > (int)threadPool.threads.size)
     {
-      Destruct(threadPool);
-      Initialize(threadPool, upperThread);
-      // AddWorker(threadPool, threadPool.threads.size());
+      // Destruct(threadPool);
+      // Initialize(threadPool, upperThread);
+      // // AddWorker(threadPool, threadPool.threads.size());
+      // threadPool.condition.notify_all();
+      // // std::cout << "Upper Thread: " << upperThread << std::endl;
+      for (int id = threadPool.threads.size; id < upperThread; ++id)
+      {
+        AddWorker(threadPool, id);
+      }
       threadPool.condition.notify_all();
-      // std::cout << "Upper Thread: " << upperThread << std::endl;
     }
   }
 

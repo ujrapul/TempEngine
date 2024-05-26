@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "Logger.hpp"
+#include "STDPCH.hpp" // IWYU pragma: keep
 #include "TextBox.hpp"
 #include "TextButton.hpp"
 #include "Sprite.hpp"

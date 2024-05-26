@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 #include "Camera.hpp"
-#include "Engine.hpp"
 #include "Scene.hpp"
+#include "OpenGLWrapper.hpp"
 
 namespace Temp::Camera
 {

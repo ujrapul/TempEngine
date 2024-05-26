@@ -7,6 +7,7 @@
 #include "MemoryUtils.hpp"
 #include <cstdint>
 #include <cstring>
+#include <ostream>
 
 namespace Temp
 {
@@ -32,12 +33,13 @@ namespace Temp
     }
 
     // Lazy Initialize String
-    constexpr BaseString() noexcept
+    constexpr BaseString(bool initialize = false, size_t _capacity = 8) noexcept :
+      capacity(_capacity)
     {
-      // prevOffset = MemoryManager::data.GetCurrentOffset(Type);
-      // buffer = static_cast<char*>(MemoryManager::data.Allocate(Type, size * sizeof(char)));
-      // offset = MemoryManager::data.GetCurrentOffset(Type);
-      // Fill({});
+      if (initialize)
+      {
+        Initialize();
+      }
     }
 
     constexpr BaseString(char* bufferStart, char* bufferEnd) noexcept
@@ -142,15 +144,20 @@ namespace Temp
       return buffer[index];
     }
 
-    constexpr BaseString operator+(const BaseString& other)
+    constexpr BaseString operator+(const BaseString& other) const
     {
       return operator+(other.c_str());
     }
 
-    inline BaseString operator+(const char* other)
+    inline BaseString operator+(const char* other) const
     {
       BaseString out;
-      out.size = size + strlen(other);
+      size_t otherSize = strlen(other);
+      if (!other || otherSize == 0)
+      {
+        return "";
+      }
+      out.size = size + otherSize;
       out.capacity = out.size * 2;
       if constexpr (Type == MemoryManager::Data::Type::THREAD_TEMP)
       {
@@ -169,11 +176,11 @@ namespace Temp
       {
         strncpy(out.buffer, buffer, size);
       }
-      strcpy(out.buffer + size, other);
+      strcat(out.buffer, other);
       return out;
     }
 
-    inline BaseString operator+(char c)
+    inline BaseString operator+(char c) const
     {
       BaseString out;
       out.size = size + 1;
@@ -212,6 +219,45 @@ namespace Temp
     constexpr BaseString& operator=(BaseString other) noexcept
     {
       Swap(*this, other);
+      return *this;
+    }
+
+    constexpr BaseString& operator=(const char* other) noexcept
+    {
+      if (!other)
+      {
+        Replace("");
+      }
+      else
+      {
+        Replace(other);
+      }
+      return *this;
+    }
+
+    constexpr BaseString& operator+=(BaseString& other) noexcept
+    {
+      return operator+=(other.c_str());
+    }
+
+    constexpr BaseString& operator+=(const char* other) noexcept
+    {
+      if (!other)
+      {
+        return *this;
+      }
+      Buffer();
+      size_t newSize = size + strlen(other);
+      if (capacity < newSize)
+      {
+        Resize(newSize * 2);
+      }
+      for (size_t i = size; i < newSize; ++i)
+      {
+        buffer[i] = other[i - size];
+      }
+      buffer[newSize] = '\0';
+      size = newSize;
       return *this;
     }
 
@@ -257,7 +303,6 @@ namespace Temp
       if (!buffer)
       {
         Initialize();
-        memset(buffer, 0, capacity * sizeof(char));
       }
       return buffer;
     }
@@ -302,7 +347,7 @@ namespace Temp
         newBuffer = static_cast<char*>(MemoryManager::data.Allocate(Type, newCapacity * sizeof(char)));
         offset = MemoryManager::data.GetCurrentOffset(Type);
       }
-      if (buffer)
+      if (size > 0)
       {
         strncpy(newBuffer, buffer, size);
       }
@@ -318,12 +363,19 @@ namespace Temp
 
     constexpr void TrimEnd(size_t num)
     {
-      if (!buffer)
+      if (size == 0)
       {
         return;
       }
-      size -= num;
-      buffer[size] = '\0';
+      else if (num >= size)
+      {
+        Replace("");
+      }
+      else
+      {
+        size -= num;
+        buffer[size] = '\0';
+      }
     }
 
     constexpr void Replace(const char* str)
@@ -356,8 +408,8 @@ namespace Temp
     {
       BaseString out;
       int length = snprintf(NULL, 0, "%u", i);
-      out.size = length;
       out.Resize((size_t)length + 1);
+      out.size = length;
       sprintf(out.Buffer(), "%u", i);
       return out;
     }
@@ -366,8 +418,8 @@ namespace Temp
     {
       BaseString out;
       int length = snprintf(NULL, 0, "%ld", i);
-      out.size = length;
       out.Resize((size_t)length + 1);
+      out.size = length;
       sprintf(out.Buffer(), "%ld", i);
       return out;
     }
@@ -376,8 +428,8 @@ namespace Temp
     {
       BaseString out;
       int length = snprintf(NULL, 0, "%f", i);
-      out.size = length;
       out.Resize((size_t)length + 1);
+      out.size = length;
       sprintf(out.Buffer(), "%f", i);
       return out;
     }
@@ -545,6 +597,23 @@ namespace Temp
       for (size_t i = 0; i < strlen(key); ++i)
       {
         if (buffer[i] != key[i])
+        {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    constexpr bool ends_with(const char* key) const
+    {
+      size_t keySize = strlen(key);
+      if (size < keySize)
+      {
+        return false;
+      }
+      for (size_t i = 0; i < keySize; ++i)
+      {
+        if (buffer[size - 1 - i] != key[keySize - 1 - i])
         {
           return false;
         }

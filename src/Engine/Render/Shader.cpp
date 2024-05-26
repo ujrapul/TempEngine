@@ -33,27 +33,15 @@ namespace Temp::Render
     return out;
   }
 
-  const std::filesystem::path& GetShadersPath()
+  Path GetShadersPath()
   {
-    static auto shadersPath = AssetsDirectory() / "Shaders";
-    return shadersPath;
+    static GlobalPath shadersPath(AssetsDirectoryGlobal() / "Shaders");
+    return shadersPath.c_str();
   }
 
-  ThreadedDynamicArray<ThreadedString> GlobalShaderFiles()
+  const GlobalDynamicArray<GlobalString>& GlobalShaderFiles()
   {
-    ThreadedDynamicArray<ThreadedString> out{(GetShadersPath() / "Common.glsl").c_str()};
-    return out;
-  }
-
-  GlobalDynamicArray<std::filesystem::file_time_type>& GlobalShaderFilesTimes()
-  {
-    static GlobalDynamicArray<std::filesystem::file_time_type> out;
-    static bool first = true;
-    if (first)
-    {
-      out.Resize(GlobalShaderFiles().size);
-      first = false;
-    }
+    static GlobalDynamicArray<GlobalString> out{(GetShadersPath() / "Common.glsl").c_str()};
     return out;
   }
 }

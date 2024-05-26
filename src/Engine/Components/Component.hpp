@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "STDPCH.hpp"
+#include "STDPCH.hpp" // IWYU pragma: keep
 
 namespace Temp
 {

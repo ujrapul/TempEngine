@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "imgui.h"
+
 IMGUI_IMPL_API bool     ImGui_ImplX11_Init(struct _XDisplay* display, unsigned long window);
 IMGUI_IMPL_API void     ImGui_ImplX11_Shutdown();
 IMGUI_IMPL_API bool     ImGui_ImplX11_NewFrame();

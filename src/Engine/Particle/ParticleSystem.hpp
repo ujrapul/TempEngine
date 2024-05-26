@@ -23,7 +23,7 @@ namespace Temp::ParticleSystem
   struct Parameters
   {
     Math::Vec3f initialPos{};
-    std::string textureName{};
+    SceneString textureName{};
     float initialScale{};
     float time{};
     float speed{};

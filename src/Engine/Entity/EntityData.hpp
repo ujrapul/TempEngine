@@ -7,7 +7,6 @@
 #include "ComponentContainer.hpp"
 #include "ComponentType.hpp"
 #include "Entity.hpp"
-#include "MemoryManager.hpp"
 
 namespace Temp
 {

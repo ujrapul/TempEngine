@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include "Engine.hpp"
+#include "Engine.hpp" // IWYU pragma: keep
 #include "Logger.hpp"
+#include <iostream>
 
 namespace Temp
 {

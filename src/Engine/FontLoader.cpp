@@ -3,14 +3,8 @@
 
 #include "FontLoader.hpp"
 
-#include "Array_fwd.hpp"
-#include "EngineUtils.hpp"
-#include "Logger.hpp"
-#include "MemoryManager.hpp"
-#include "OpenGLWrapper.hpp"
 #include "ThreadPool.hpp"
 #include "gl.h"
-#include <string>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -50,9 +44,9 @@ namespace Temp::Font
     typedef ThreadedArray<ThreadedArray<GlyphData, asciiNum>, Type::MAX> GlyphDataMap;
     GlobalArray<GlobalArray<Character, asciiNum>, Type::MAX> fontTable;
 
-    std::string fontFile[Type::MAX] = {
-      (std::filesystem::path("Arimo") / "Arimo-Regular.ttf").string(),
-      (std::filesystem::path("SHPinscher") / "SHPinscher-Regular.otf").string(),
+    const GlobalString fontFile[Type::MAX] = {
+      (AssetsDirectory() / "Fonts" / "Arimo" / "Arimo-Regular.ttf").c_str(),
+      (AssetsDirectory() / "Fonts" / "SHPinscher" / "SHPinscher-Regular.otf").c_str(),
     };
 
     void LoadFont(int type, unsigned char c, GlyphDataMap& fontGlyphs)
@@ -63,12 +57,11 @@ namespace Temp::Font
         Logger::LogErr(String("ERROR::FREETYPE: Could not init FreeType Library"));
         return;
       }
-      std::filesystem::path fontsPath = AssetsDirectory() / "Fonts" / fontFile[type];
 
       FT_Face face = nullptr;
-      if (FT_New_Face(ft, fontsPath.string().c_str(), 0, &face))
+      if (FT_New_Face(ft, fontFile[type].c_str(), 0, &face))
       {
-        Logger::LogErr(String("ERROR::FREETYPE: Failed to load font > ") + fontsPath.c_str());
+        Logger::LogErr(String("ERROR::FREETYPE: Failed to load font > ") + fontFile[type].c_str());
         return;
       }
 
@@ -87,7 +80,7 @@ namespace Temp::Font
         return;
       }
       FT_Render_Glyph(face->glyph, FT_RENDER_MODE_SDF); // <-- And this is new
-      DynamicArray<unsigned char, MemoryManager::Data::THREAD_TEMP> buffer(
+      ThreadedDynamicArray<unsigned char> buffer(
         face->glyph->bitmap.buffer,
         face->glyph->bitmap.buffer + face->glyph->bitmap.width * face->glyph->bitmap.rows);
       fontGlyphs[type][c] = {

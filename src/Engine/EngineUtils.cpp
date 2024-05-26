@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "EngineUtils.hpp"
+#include "FileSystem.hpp"
 #include "Logger.hpp"
 #ifdef __linux__
 #include <dlfcn.h>
@@ -17,18 +18,18 @@ namespace Temp
   namespace
   {
 #ifdef __linux__
-    inline std::filesystem::path GetApplicationDirectory()
+    inline Path GetApplicationDirectory()
     {
       char buffer[PATH_MAX];
       ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
       if (len == -1)
       {
-        std::cout << "FAILED TO READ EXEC DIR!";
+        Logger::LogErr("FAILED TO READ EXEC DIR!");
         return "";
       }
 
-      std::filesystem::path executablePath(buffer);
-      std::filesystem::path path = executablePath.parent_path();
+      Path executablePath(buffer);
+      Path path = executablePath.ParentPath();
 
       return path;
     }
@@ -57,25 +58,36 @@ namespace Temp
       return std::filesystem::path(); // Return an empty path if failed to retrieve the directory
     }
 #endif
+
   }
 
-  const std::filesystem::path& ApplicationDirectory()
+  Path ApplicationDirectory()
   {
-    static std::filesystem::path applicationDirectory{GetApplicationDirectory()};
+    return Path(ApplicationDirectoryGlobal().c_str());
+  }
+
+  Path AssetsDirectory()
+  {
+    return Path(AssetsDirectoryGlobal().c_str());
+  }
+
+  const GlobalPath& ApplicationDirectoryGlobal()
+  {
+    static GlobalPath applicationDirectory(GetApplicationDirectory().c_str());
     return applicationDirectory;
   }
 
-  const std::filesystem::path& AssetsDirectory()
+  const GlobalPath& AssetsDirectoryGlobal()
   {
-    static std::filesystem::path assetsDirectory{GetApplicationDirectory() / "Assets"};
+    static GlobalPath assetsDirectory((GetApplicationDirectory() / "Assets").c_str());
     return assetsDirectory;
   }
 
-  void* OpenDynamicLibrary(const std::string& name)
+  void* OpenDynamicLibrary(const char* name)
   {
     void* libHandle = nullptr;
 #ifdef __linux__
-    libHandle = dlopen(("lib" + name + ".so").c_str(), RTLD_NOW | RTLD_LOCAL);
+    libHandle = dlopen((String("lib") + name + String(".so")).c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!libHandle)
     {
       Logger::LogErr(String("[EngineUtils] Error loading library ") + dlerror());
@@ -84,10 +96,10 @@ namespace Temp
     return libHandle;
   }
 
-  void* GetDynamicLibraryFn(void* libraryHandle, const std::string& fn)
+  void* GetDynamicLibraryFn(void* libraryHandle, const char* fn)
   {
 #ifdef __linux__
-    return dlsym(libraryHandle, fn.c_str());
+    return dlsym(libraryHandle, fn);
 #endif
   }
 

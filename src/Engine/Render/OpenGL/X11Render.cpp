@@ -3,20 +3,17 @@
 
 #include "X11Render.hpp"
 
+#include "STDPCH.hpp"
 #include "Logger.hpp"
 #include "Scene.hpp"
 #include "Camera.hpp"
-#include "Drawable.hpp"
 #include "Engine.hpp"
 #include "Event.hpp"
 #include "Hoverable.hpp"
 #include "Input.hpp"
-#include "OpenGLWrapper.hpp"
-#include "RenderUtils.hpp"
 #include "gl.h"
 #include "glx.h"
 #include <X11/X.h>
-#include <string>
 
 #if defined(EDITOR) || defined(DEBUG)
 #include "CommonRender.hpp"
@@ -27,11 +24,9 @@
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <chrono>
-#include <condition_variable>
-#include <iostream>
-#include <thread>
+
 #include <unistd.h>
+#include "STDPCH.hpp"
 
 namespace Temp::Render
 {
@@ -89,7 +84,7 @@ namespace Temp::Render
       display = XOpenDisplay(nullptr);
       if (display == nullptr)
       {
-        std::cerr << "Unable to open X11 display" << std::endl;
+        Logger::LogErr("Unable to open X11 display");
         return;
       }
 
@@ -124,7 +119,7 @@ namespace Temp::Render
       visualInfo = glXChooseVisual(display, screen, attribs);
       if (visualInfo == nullptr)
       {
-        std::cerr << "Unable to find a suitable visual" << std::endl;
+        Logger::LogErr("Unable to find a suitable visual");
         return;
       }
 
@@ -161,7 +156,7 @@ namespace Temp::Render
       context = glXCreateContext(display, visualInfo, nullptr, GL_TRUE);
       if (context == nullptr)
       {
-        std::cerr << "Unable to create an OpenGL context" << std::endl;
+        Logger::LogErr("Unable to create an OpenGL context");
         return;
       }
 
@@ -181,7 +176,7 @@ namespace Temp::Render
 
       if (!GLAD_GL_VERSION_3_3)
       {
-        std::cerr << "OpenGL 3.3 is not supported" << std::endl;
+        Logger::LogErr("OpenGL 3.3 is not supported");
         return;
       }
       GLenum error;

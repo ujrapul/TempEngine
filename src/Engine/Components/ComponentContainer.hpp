@@ -3,11 +3,11 @@
 
 #pragma once
 
+#include "STDPCH.hpp" // IWYU pragma: keep
 #include "Component.hpp"
 #include "ComponentData.hpp"
 #include "ComponentType.hpp"
 #include "MemoryManager.hpp"
-#include <cstdint>
 
 namespace Temp::Component::Container
 {

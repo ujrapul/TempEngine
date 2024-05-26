@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2024 Ujwal Vujjini
 // SPDX-License-Identifier: MIT
 
-#include "Logger.hpp"
-#include "String.hpp"
+#include "STDPCH.hpp"
 #include <iostream>
 
 namespace Temp::Logger

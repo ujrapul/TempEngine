@@ -40,6 +40,18 @@ namespace Temp
     constexpr void Swap(Array& first, Array& second);
    
     constexpr void swap(Array& other);
+
+    constexpr T* begin();
+
+    constexpr T* end();
+
+    constexpr const T* begin() const;
+
+    constexpr const T* end() const;
+
+    constexpr const T* cbegin() const;
+
+    constexpr const T* cend() const;
   };
 
   template<typename T, int SizeOfArray>

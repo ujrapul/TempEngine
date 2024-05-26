@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "TextButton.hpp"
-#include "Engine.hpp"
 #include "FontLoader.hpp"
 #include "Hoverable.hpp"
 #include "Scene.hpp"

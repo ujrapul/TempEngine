@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "STDPCH.hpp"
+#include "STDPCH.hpp" // IWYU pragma: keep
 
 namespace Temp::Entity
 {
   using id = unsigned short;
-  constexpr id MAX = 5000;
+  constexpr id MAX = 4096;
 }

@@ -3,15 +3,11 @@
 
 #pragma once
 
-#include "Array.hpp"
-#include "EngineUtils.hpp"
-#include "Logger.hpp"
-#include <cstddef>
-#include <cstring>
+#include "STDPCH.hpp"
 
 namespace Temp::SaveSerializer
 {
-  enum class Type
+  enum Type
   {
     BOOL = 0,
     FLOAT,
@@ -23,7 +19,7 @@ namespace Temp::SaveSerializer
   struct Data
   {
     void* state{nullptr};
-    Type type{0};
+    Type type{Type::MAX};
   };
 
   struct DataList
@@ -35,20 +31,18 @@ namespace Temp::SaveSerializer
         switch (data.type)
         {
           case Type::BOOL:
-            delete static_cast<bool*>(data.state);
             break;
           case Type::FLOAT:
-            delete static_cast<float*>(data.state);
             break;
           case Type::INT:
-            delete static_cast<int*>(data.state);
             break;
           case Type::STRING:
-            delete static_cast<std::string*>(data.state);
+            static_cast<String*>(data.state)->~String();
             break;
           case Type::MAX:
             break;
         };
+        MemoryManager::data.Free(MemoryManager::Data::TEMP, 0);
       }
     }
     DynamicArray<Data> datas;
@@ -56,7 +50,7 @@ namespace Temp::SaveSerializer
 
   inline void Save(const DataList& dataList)
   {
-    std::ofstream f(ApplicationDirectory() / "Save");
+    FileWriter f((ApplicationDirectory() / "Save").c_str());
 
     // Get the current time point using the system clock
     auto currentTime = std::chrono::system_clock::now();
@@ -70,8 +64,15 @@ namespace Temp::SaveSerializer
       << std::put_time(&timeinfo, "%H:%M:%S") << "\n\n";
 #else
     std::tm* timeinfo = std::localtime(&time);
-    f << "// Save file: " << std::put_time(timeinfo, "%Y-%m-%d") << " "
-      << std::put_time(timeinfo, "%H:%M:%S") << "\n\n";
+    const char * format = "%d-%d-%d";
+    const char * format2 = "%d:%d:%d";
+    String timeBuffer;
+    timeBuffer.Resize(strlen(format) * 2);
+    snprintf(timeBuffer.buffer, strlen(format), format, timeinfo->tm_year, timeinfo->tm_mon, timeinfo->tm_mday);
+    String timeBuffer2;
+    timeBuffer2.Resize(strlen(format2) * 2);
+    snprintf(timeBuffer2.buffer, strlen(format2), format2, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+    f << "// Save file: " << timeBuffer << " " << timeBuffer2 << "\n\n";
 #endif
 
     for (const auto& data : dataList.datas)
@@ -79,16 +80,16 @@ namespace Temp::SaveSerializer
       switch (data.type)
       {
         case Type::BOOL:
-          f << *static_cast<bool*>(data.state) << " " << (int)data.type << std::endl;
+          f << *static_cast<bool*>(data.state) << " " << (int)data.type << "\n";
           break;
         case Type::FLOAT:
-          f << *static_cast<float*>(data.state) << " " << (int)data.type << std::endl;
+          f << *static_cast<float*>(data.state) << " " << (int)data.type << "\n";
           break;
         case Type::INT:
-          f << *static_cast<int*>(data.state) << " " << (int)data.type << std::endl;
+          f << *static_cast<int*>(data.state) << " " << (int)data.type << "\n";
           break;
         case Type::STRING:
-          f << *static_cast<std::string*>(data.state) << " " << (int)data.type << std::endl;
+          f << *static_cast<String*>(data.state) << " " << (int)data.type << "\n";
           break;
         case Type::MAX:
         default:
@@ -100,11 +101,8 @@ namespace Temp::SaveSerializer
   inline bool Load(DataList& dataList)
   {
     String contents;
-    try
-    {
-      ReadFile(contents, (ApplicationDirectory() / "Save").c_str());
-    }
-    catch (const std::exception&)
+    String output;
+    if (!ReadFile(contents, (ApplicationDirectory() / "Save").c_str(), output))
     {
       Logger::LogErr("[[SaveSerializer]] Failed to deserialize file: Save");
       return false;
@@ -133,16 +131,16 @@ namespace Temp::SaveSerializer
       switch (data.type)
       {
         case Type::BOOL:
-          data.state = new bool((bool)atoi(state.c_str()));
+          data.state = MemoryManager::CreateTemp<bool>((bool)atoi(state.c_str()));
           break;
         case Type::FLOAT:
-          data.state = new float((float)atof(state.c_str()));
+          data.state = MemoryManager::CreateTemp<float>((float)atof(state.c_str()));
           break;
         case Type::INT:
-          data.state = new int(atoi(state.c_str()));
+          data.state = MemoryManager::CreateTemp<int>(atoi(state.c_str()));
           break;
         case Type::STRING:
-          data.state = new std::string(state.c_str());
+          data.state = MemoryManager::CreateTemp<String>(state.c_str());
           break;
         case Type::MAX:
         default:

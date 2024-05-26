@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include "STDPCH.hpp"
 #include "Entity.hpp"
-#include "MemoryManager.hpp"
 #include "Shader.hpp"
 #include "Math.hpp"
 #include "String.hpp"
@@ -55,5 +55,5 @@ namespace Temp::TextBox
   void EnableOutline(Scene::Data& scene, Data& textBox, bool enable);
   void DrawDestruct(Scene::Data& scene, Data& textBox);
   void Destruct(Scene::Data& scene, Data& textBox);
-  std::string FormatText(Data& textBox, std::string_view text, std::string_view sectionBreak);
+  String FormatText(Data& textBox, String& text, String& sectionBreak);
 }

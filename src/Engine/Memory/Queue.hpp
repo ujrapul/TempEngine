@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2024 Ujwal Vujjini
 // SPDX-License-Identifier: MIT
 
+#pragma once
+
 #include "Array_fwd.hpp"
 #include "MemoryUtils.hpp"
 
@@ -13,12 +15,20 @@ namespace Temp
     size_t head{0};
     size_t tail{0};
 
-    constexpr BaseQueue() {}
+    constexpr BaseQueue(bool initialize = false, size_t _capacity = 8)
+    {
+      if (initialize)
+      {
+        Reserve(_capacity);
+      }
+    }
 
     // Copy constructor
     constexpr BaseQueue(const BaseQueue& other) noexcept
     {
       buffer = other.buffer;
+      head = other.head;
+      tail = other.tail;
     }
 
     // Move constructor
@@ -38,11 +48,13 @@ namespace Temp
     constexpr void Swap(BaseQueue& first, BaseQueue& second)
     {
       Utils::Swap(first.buffer, second.buffer);
+      Utils::Swap(first.head, second.head);
+      Utils::Swap(first.tail, second.tail);
     }
 
     constexpr bool operator==(const BaseQueue& other) const
     {
-      return buffer == other.buffer;
+      return buffer == other.buffer && head == other.head && tail == other.tail;
     }
 
     inline DynamicArray<T, Type>& Buffer()
@@ -50,29 +62,41 @@ namespace Temp
       if (!buffer.buffer)
       {
         buffer.Initialize();
-        head = buffer.capacity - 1;
-        tail = head;
+        head = 0;
+        tail = 0;
       }
       return buffer;
+    }
+
+    inline void Reserve(size_t newCapacity)
+    {
+      Buffer().Reserve(newCapacity);
+      head = 0;
+      tail = 0;
     }
 
     inline void Push(T element)
     {
       Buffer()[tail] = std::move(element);
-      if (--tail == SIZE_MAX)
+      if (tail + 1 == buffer.capacity)
       {
-        size_t offset = head - tail;
-        if (head == buffer.capacity - 1)
+        size_t offset = head;
+        if (head == 0)
         {
+          buffer.size = tail + 1;
           buffer.Reserve(buffer.capacity * 2);
         }
-        for (size_t i = 0, end = buffer.capacity - 1; i <= head; ++i, --end)
+        else
         {
-          buffer[end] = std::move(buffer[i]);
+          for (size_t i = 0; i < Size(); ++i)
+          {
+            buffer[i] = std::move(buffer[head + i]);
+          }
+          head = 0;
+          tail -= offset;
         }
-        head = buffer.capacity - 1;
-        tail = head - offset;
       }
+      ++tail;
     }
 
     template<typename... Args>
@@ -83,18 +107,17 @@ namespace Temp
 
     inline void Pop()
     {
-      assert(head > tail);
-      --head;
+      ++head;
     }
 
     constexpr T& Back()
     {
-      return buffer[tail];
+      return buffer[tail - 1];
     }
 
     constexpr T& Back() const
     {
-      return buffer[tail];
+      return buffer[tail - 1];
     }
 
     constexpr T& Front()
@@ -109,12 +132,18 @@ namespace Temp
 
     constexpr size_t Size()
     {
-      return (head - tail) + 1;
+      return (tail - head) + 1;
     }
 
     constexpr bool Empty() const
     {
       return head == tail;
+    }
+
+    constexpr void Clear()
+    {
+      head = 0;
+      tail = 0;
     }
   };
 

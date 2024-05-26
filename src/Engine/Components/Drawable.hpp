@@ -3,11 +3,12 @@
 
 #pragma once
 
+#include "STDPCH.hpp" // IWYU pragma: keep
 #include "Camera.hpp"
 #include "Entity.hpp"
 #include "Math.hpp"
 #include "MemoryManager.hpp"
-#include "OpenGLWrapper.hpp"
+#include "gl.h"
 
 namespace Temp::SceneObject
 {
@@ -32,11 +33,10 @@ namespace Temp::Component::Drawable
     GLuint shaderProgram{UINT_MAX};
     int numInstances{1};
     int indicesSize{0};
+    int bufferDraw{GL_STATIC_DRAW};
     bool visible{true};
     bool disableDepth{false};
-#ifdef DEBUG
-    int shaderIdx{};
-#endif
+    int shaderIdx{-1};
 
     // Needed for unit test
     bool operator==(const Data& other) const = default;
@@ -64,7 +64,7 @@ namespace Temp::Component::Drawable
                  int UBO = Camera::UBO());
   void ConstructFont(Data& drawable,
                      int shaderIdx,
-                     int bufferDraw = GL_DYNAMIC_DRAW,
+                     int bufferDraw = GL_STATIC_DRAW,
                      const DynamicArray<int>& numOfElements = {4},
                      int vertexStride = 4,
                      int UBO = Camera::FontUBO());
@@ -100,6 +100,6 @@ namespace Temp::Component::Drawable
                                   int numOfElements,
                                   int stride,
                                   int position = 0);
-  void UpdateVertexIndexBuffers(Data& drawable, int BufferDraw = GL_STATIC_DRAW);
+  void UpdateVertexIndexBuffers(Data& drawable);
   Math::Vec4f ConvertToLocalSpace(Data& drawable, Math::Vec4f worldCoords);
 }

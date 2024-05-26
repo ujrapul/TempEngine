@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "Drawable.hpp"
 #include "Entity.hpp"
 #include "Shader.hpp"
 
@@ -24,7 +25,7 @@ namespace Temp::EditorGrid
 #else
   void DrawConstruct(Scene::Data& scene, Data& editorGrid, int shaderType = 0);
 #endif
-  void DrawUpdate(Scene::Data& scene, Data& editorGrid);
+  void DrawUpdate(Scene::Data& scene, Component::Drawable::Data& drawable, Data& editorGrid);
   void DrawDestruct(Scene::Data& scene, Data& editorGrid);
   void Destruct(Scene::Data& scene, Data& editorGrid);
 }

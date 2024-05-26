@@ -3,8 +3,9 @@
 
 #pragma once
 
+#include "STDPCH.hpp"
 #include "EngineUtils.hpp"
-#include "EntityType.hpp"
+#include "FileWriter.hpp"
 #include "Logger.hpp"
 #include "Math.hpp"
 #include "MemoryManager.hpp"
@@ -83,7 +84,7 @@ namespace Temp::LevelSerializer
   struct GlobalSerializeData
   {
     Scene::Data& scene;
-    std::ofstream& f;
+    FileWriter& f;
   };
 
   constexpr uint8_t ENUM_MIN = 0;

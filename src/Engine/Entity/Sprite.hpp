@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "STDPCH.hpp"
 #include "Entity.hpp"
 #include "Shader.hpp"
 #include "Math.hpp"

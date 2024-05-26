@@ -4,38 +4,24 @@
 #pragma once
 
 #ifdef __cplusplus
-#include <algorithm>
-#include <array>
-#include <atomic>
-#include <cassert>
-#include <cassert>
-#include <cerrno>
-#include <cfloat>
-#include <chrono>
-#include <climits>
-#include <cmath>
-#include <condition_variable>
-#include <cstddef>
-#include <cstdint>
-#include <exception>
-#include <filesystem>
-#include <fstream>
-#include <functional>
-#include <iostream>
-#include <iterator>
-#include <mutex>
-#include <queue>
-#include <span>
-#include <sstream>
-#include <string>
-#include <string_view>
-#include <thread>
-#include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
-#include "STD.hpp"
+#include <algorithm> // IWYU pragma: keep
+#include <atomic>  // IWYU pragma: keep
+#include <cassert> // IWYU pragma: keep
+#include <cassert> // IWYU pragma: keep
+#include <cerrno> // IWYU pragma: keep
+#include <cfloat> // IWYU pragma: keep
+#include <chrono> // IWYU pragma: keep
+#include <climits> // IWYU pragma: keep
+#include <cmath> // IWYU pragma: keep
+#include <condition_variable> // IWYU pragma: keep
+#include <cstddef> // IWYU pragma: keep
+#include <cstdint> // IWYU pragma: keep
+#include <iterator> // IWYU pragma: keep
+#include <mutex> // IWYU pragma: keep
+#include <thread> // IWYU pragma: keep
+#include "STD.hpp" // IWYU pragma: keep
 #endif
 
 #include <immintrin.h>
-#include <limits.h>
-#include <string.h>
+#include <limits.h> // IWYU pragma: keep
+#include <string.h> // IWYU pragma: keep

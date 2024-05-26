@@ -10,7 +10,6 @@
 #include "TextBox.hpp"
 
 #include "GameDrawable.hpp"
-#include <climits>
 
 namespace Temp::Component::Drawable
 {
@@ -32,19 +31,44 @@ namespace Temp::Component::Drawable
       drawable.shaderProgram = OpenGLWrapper::GetShaderProgram(shaderIdx);
       if (OpenGLWrapper::globalFreeGLObjects.size > 0)
       {
-        auto GLObject = OpenGLWrapper::globalFreeGLObjects.back();
-        OpenGLWrapper::globalFreeGLObjects.PopBack();
-        drawable.VAO = GLObject.VAO;
-        drawable.VBO = GLObject.VBO;
-        drawable.EBO = GLObject.EBO;
-        OpenGLWrapper::UpdateVBO(drawable.VBO,
-                                 drawable.vertices.buffer,
-                                 drawable.vertices.size,
-                                 bufferDraw);
-        OpenGLWrapper::UpdateEBO(drawable.EBO,
-                                 drawable.indices.buffer,
-                                 drawable.indices.size,
-                                 bufferDraw);
+        OpenGLWrapper::GLObjectData glObject;
+        for (auto& glObjectData : OpenGLWrapper::globalFreeGLObjects[shaderIdx])
+        {
+          if (glObjectData.BufferDraw == bufferDraw)
+          {
+            glObject = glObjectData;
+            break;
+          }
+        }
+        if (glObject.VAO == UINT_MAX)
+        {
+          drawable.VAO = OpenGLWrapper::CreateVAO();
+          drawable.VBO = OpenGLWrapper::CreateVBO(drawable.vertices.buffer,
+                                                  drawable.vertices.size,
+                                                  bufferDraw);
+          drawable.EBO = OpenGLWrapper::CreateEBO(drawable.indices.buffer,
+                                                  drawable.indices.size,
+                                                  bufferDraw);
+        }
+        else
+        {
+          drawable.VAO = glObject.VAO;
+          drawable.VBO = glObject.VBO;
+          drawable.EBO = glObject.EBO;
+          OpenGLWrapper::UpdateVBO(drawable.VBO,
+                                  drawable.vertices.buffer,
+                                  drawable.vertices.size,
+                                  sizeof(float),
+                                  bufferDraw);
+          OpenGLWrapper::UpdateEBO(drawable.EBO,
+                                  drawable.indices.buffer,
+                                  drawable.indices.size,
+                                  bufferDraw);
+          OpenGLWrapper::globalFreeGLObjects[shaderIdx].Remove(glObject);
+          glBindVertexArray(drawable.VAO);
+          glBindBuffer(GL_ARRAY_BUFFER, drawable.VBO);
+          glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawable.EBO);
+        }
       }
       else
       {
@@ -57,6 +81,7 @@ namespace Temp::Component::Drawable
                                                 bufferDraw);
       }
       drawable.indicesSize = (int)drawable.indices.size;
+      drawable.bufferDraw = bufferDraw;
       for (size_t i = 0; i < numOfElements.size; ++i)
       {
         OpenGLWrapper::SetVertexAttribArray(i,
@@ -137,9 +162,7 @@ namespace Temp::Component::Drawable
   {
     using namespace Temp::Render;
 
-#ifdef DEBUG
     drawable.shaderIdx = shaderIdx;
-#endif
     Construct(drawable, shaderIdx, bufferDraw, numOfElements, vertexStride, UBO, "Matrices", 0);
   }
 
@@ -152,9 +175,7 @@ namespace Temp::Component::Drawable
   {
     using namespace Temp::Render;
 
-#ifdef DEBUG
     drawable.shaderIdx = shaderIdx;
-#endif
     Construct(drawable, shaderIdx, bufferDraw, numOfElements, vertexStride, UBO, "FontMatrices", 1);
   }
 
@@ -171,6 +192,7 @@ namespace Temp::Component::Drawable
     glUseProgram(drawable.shaderProgram);
     OpenGLWrapper::BindTexture(GL_TEXTURE0, drawable.texture);
     OpenGLWrapper::Set1FloatShaderProperty(drawable.shaderProgram, "u_time", Global::Time());
+    UpdateData(drawable);
     DrawUpdate(scene, object, drawable);
     Update(drawable);
 
@@ -236,7 +258,8 @@ namespace Temp::Component::Drawable
     // CleanArrays(drawable.VAO);
 
     // CACHE SHADERS SO THAT WE DON'T KEEP ALLOCATING NEW BUFFERS
-    globalFreeGLObjects.PushBack({drawable.VAO, drawable.VBO, drawable.EBO});
+    globalFreeGLObjects[drawable.shaderIdx].PushBackUnique(
+      {drawable.VAO, drawable.VBO, drawable.EBO, drawable.bufferDraw});
     // DONT CLEAN SHADERS THEY WILL EXIST FOR THE ENTIRE PROGRAM
     // CleanShader(drawable.shaderProgram);
     UnbindBuffers();
@@ -245,7 +268,7 @@ namespace Temp::Component::Drawable
   void UpdateFloatBuffer(GLuint buffer, DynamicArray<float>& data, int BufferDraw)
   {
     using namespace Temp::Render::OpenGLWrapper;
-    UpdateVBO(buffer, data.buffer, data.size, BufferDraw);
+    UpdateVBO(buffer, data.buffer, data.size, sizeof(float), BufferDraw);
   }
 
   void UpdateIndexBuffer(GLuint buffer, DynamicArray<unsigned int>& data, int BufferDraw)
@@ -306,10 +329,10 @@ namespace Temp::Component::Drawable
     return drawable.buffers.back();
   }
 
-  void UpdateVertexIndexBuffers(Data& drawable, int BufferDraw)
+  void UpdateVertexIndexBuffers(Data& drawable)
   {
-    MoveFloatBuffer(drawable.VBO, drawable.vertices, BufferDraw);
-    MoveIndexBuffer(drawable.EBO, drawable.indices, BufferDraw);
+    MoveFloatBuffer(drawable.VBO, drawable.vertices, drawable.bufferDraw);
+    MoveIndexBuffer(drawable.EBO, drawable.indices, drawable.bufferDraw);
   }
 
   Math::Vec4f ConvertToLocalSpace(Data& drawable, Math::Vec4f worldCoords)

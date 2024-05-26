@@ -5,21 +5,19 @@
 
 #include "Array_fwd.hpp"
 #include "MemoryManager.hpp"
-#include "EngineUtils.hpp"
 #include "String.hpp"
-#include <climits>
+#include <cstdint>
 #include <cstring>
-#include <type_traits>
 
 namespace Temp
 {
   template <typename K,
             typename V,
-            typename Hash1,
-            typename Hash2,
+            size_t Hash1(K),
+            size_t Hash2(K),
             MemoryManager::Data::Type Type = MemoryManager::Data::TEMP,
             size_t Size = 8192>
-  struct HashMap
+  struct BaseHashMap
   {
     struct Pair
     {
@@ -29,32 +27,69 @@ namespace Temp
     };
 
     DynamicArray<Pair, Type> buffer;
+    size_t size{0};
     
-    constexpr HashMap() {}
+    constexpr BaseHashMap(bool initialize = false)
+    {
+      if (initialize)
+      {
+        buffer.Resize(Size);
+      }
+    }
 
     // Copy constructor
-    constexpr HashMap(const HashMap& other) noexcept
+    constexpr BaseHashMap(const BaseHashMap& other) noexcept
     {
       buffer = other.buffer;
     }
 
     // Move constructor
-    constexpr HashMap(HashMap&& other) noexcept
-      : HashMap()
+    constexpr BaseHashMap(BaseHashMap&& other) noexcept
+      : BaseHashMap()
     {
       Swap(*this, other);
     }
 
     // Does a copy operation
-    constexpr HashMap& operator=(HashMap other)
+    constexpr BaseHashMap& operator=(BaseHashMap other)
     {
       Swap(*this, other);
       return *this;
     }
 
-    constexpr void Swap(HashMap& first, HashMap& second)
+    constexpr void Swap(BaseHashMap& first, BaseHashMap& second)
     {
       Utils::Swap(first.buffer, second.buffer);
+    }
+
+    constexpr Pair* begin()
+    {
+      return buffer.begin();
+    }
+
+    constexpr Pair* end()
+    {
+      return buffer.end();
+    }
+
+    constexpr const Pair* begin() const
+    {
+      return buffer.begin();
+    }
+
+    constexpr const Pair* end() const
+    {
+      return buffer.end();
+    }
+
+    constexpr const Pair* cbegin() const
+    {
+      return buffer.cbegin();
+    }
+
+    constexpr const Pair* cend() const
+    {
+      return buffer.cend();
     }
 
     const DynamicArray<Pair, Type>& Buffer() const
@@ -74,82 +109,87 @@ namespace Temp
     const V& operator[](const K& key) const
     {
       size_t pos1 = Hash(0, key);
-      if (buffer[pos1].key == key)
+      if (buffer[pos1].key == key && buffer[pos1].hash != UINT8_MAX)
       {
         return buffer[pos1].value;
       }
       size_t pos2 = Hash(1, key);
-      if (buffer[pos2].key == key)
+      if (buffer[pos2].key == key && buffer[pos2].hash != UINT8_MAX)
       {
         return buffer[pos2].value;
       }
       assert(false);
+      return Buffer()[0].value;
     }
 
     V& operator[](const K& key)
     {
       size_t pos1 = Hash(0, key);
-      if (Buffer()[pos1].key == key)
+      if (Buffer()[pos1].key == key && buffer[pos1].hash != UINT8_MAX)
       {
         return Buffer()[pos1].value;
       }
       size_t pos2 = Hash(1, key);
-      if (Buffer()[pos2].key == key)
+      if (Buffer()[pos2].key == key && buffer[pos2].hash != UINT8_MAX)
       {
         return Buffer()[pos2].value;
       }
       if (Insert(key, {}))
       {
         size_t pos1 = Hash(0, key);
-        if (Buffer()[pos1].key == key)
+        if (Buffer()[pos1].key == key && buffer[pos1].hash != UINT8_MAX)
         {
           return Buffer()[pos1].value;
         }
         size_t pos2 = Hash(1, key);
-        if (Buffer()[pos2].key == key)
+        if (Buffer()[pos2].key == key && buffer[pos2].hash != UINT8_MAX)
         {
           return Buffer()[pos2].value;
         }
       }
       assert(false);
+      return Buffer()[0].value;
     }
 
-    bool Insert(K& key, V& value)
+    bool Insert(K key, V value = {})
     {
+      [[maybe_unused]]
       static size_t recursions = 0;
       assert(recursions <= Size);
 
       size_t pos1 = Hash(0, key);
       size_t pos2 = Hash(1, key);
-      if (Buffer()[pos1].key == key)
+      if (Buffer()[pos1].key == key && buffer[pos1].hash != UINT8_MAX)
       {
-        Buffer()[pos1].value = value;
+        Buffer()[pos1].value = std::move(value);
         recursions = 0;
         return true;
       }
-      else if (Buffer()[pos2].key == key)
+      else if (Buffer()[pos2].key == key && buffer[pos2].hash != UINT8_MAX)
       {
-        Buffer()[pos2].value = value;
+        Buffer()[pos2].value = std::move(value);
         recursions = 0;
         return true;
       }
 
       if (Buffer()[pos1].hash == UINT8_MAX)
       {
-        Buffer()[pos1] = Pair(key, value, 0);
+        Buffer()[pos1] = Pair(std::move(key), std::move(value), 0);
         recursions = 0;
+        ++size;
         return true;
       }
       else if (Buffer()[pos2].hash == UINT8_MAX)
       {
-        Buffer()[pos2] = Pair(key, value, 1);
+        Buffer()[pos2] = Pair(std::move(key), std::move(value), 1);
         recursions = 0;
+        ++size;
         return true;
       }
       else
       {
         auto prevEntry = Buffer()[pos1];
-        Buffer()[pos1] = Pair(key, value, 0);
+        Buffer()[pos1] = Pair(std::move(key), std::move(value), 0);
         ++recursions;
         Insert(prevEntry.key, prevEntry.value);
       }
@@ -162,21 +202,29 @@ namespace Temp
     {
       size_t pos1 = Hash(0, key);
       size_t pos2 = Hash(1, key);
-      return buffer.size != 0 && (Buffer()[pos1].hash != UINT_MAX || Buffer()[pos2].hash != UINT_MAX);
+      return Buffer()[pos1].hash != UINT8_MAX || Buffer()[pos2].hash != UINT8_MAX;
     }
 
     void Remove(const K& key)
     {
+      if (!Contains(key))
+      {
+        return;
+      }
       size_t pos1 = Hash(0, key);
-      if (Buffer()[pos1].key == key)
+      if (Buffer()[pos1].key == key && buffer[pos1].hash != UINT8_MAX)
       {
         Buffer()[pos1] = {};
+        Buffer()[pos1].hash = UINT8_MAX;
+        --size;
         return;
       }
       size_t pos2 = Hash(1, key);
-      if (Buffer()[pos2].key == key)
+      if (Buffer()[pos2].key == key && buffer[pos2].hash != UINT8_MAX)
       {
         Buffer()[pos2] = {};
+        Buffer()[pos2].hash = UINT8_MAX;
+        --size;
         return;
       }
       assert(false);
@@ -187,25 +235,26 @@ namespace Temp
       for (size_t i = 0; i < Size; ++i)
       {
         Buffer()[i] = {};
+        Buffer()[i].hash = UINT8_MAX;
       }
     }
     
     size_t Find(const K& key) const
     {
       size_t pos1 = Hash(0, key);
-      if (Buffer()[pos1].key == key)
+      if (Buffer()[pos1].key == key && buffer[pos1].hash != UINT8_MAX)
       {
         return pos1;
       }
       size_t pos2 = Hash(1, key);
-      if (Buffer()[pos2].key == key)
+      if (Buffer()[pos2].key == key && buffer[pos2].hash != UINT8_MAX)
       {
         return pos2;
       }
       return SIZE_MAX;
     }
 
-    inline size_t Hash(size_t function, const K& key)
+    inline size_t Hash(size_t function, const K& key) const
     {
       switch (function)
       {
@@ -214,6 +263,11 @@ namespace Temp
         default:
           return Hash2(key) % Size / 2 + Size / 2;
       }
+    }
+
+    inline size_t Empty()
+    {
+      return size == 0;
     }
   };
 
@@ -301,12 +355,12 @@ namespace Temp
     const V& operator[](const char* key) const
     {
       size_t pos1 = Hash(0, key);
-      if (String(Buffer()[pos1].key.c_str()) == String(key))
+      if (String(Buffer()[pos1].key.c_str()) == String(key) && buffer[pos1].hash != UINT8_MAX)
       {
         return Buffer()[pos1].value;
       }
       size_t pos2 = Hash(1, key);
-      if (String(Buffer()[pos2].key.c_str()) == String(key))
+      if (String(Buffer()[pos2].key.c_str()) == String(key) && buffer[pos2].hash != UINT8_MAX)
       {
         return Buffer()[pos2].value;
       }
@@ -320,25 +374,25 @@ namespace Temp
 
       size_t pos1 = Hash(0, key);
       String a1 = String(GetKey(pos1).c_str());
-      if (a1 == other)
+      if (a1 == other && buffer[pos1].hash != UINT8_MAX)
       {
         return Buffer()[pos1].value;
       }
       size_t pos2 = Hash(1, key);
       String a2 = String(GetKey(pos2).c_str());
-      if (a2 == other)
+      if (a2 == other && buffer[pos2].hash != UINT8_MAX)
       {
         return Buffer()[pos2].value;
       }
       if (Insert(key, {}))
       {
         size_t pos1 = Hash(0, key);
-        if (String(GetKey(pos1).c_str()) == String(key))
+        if (String(GetKey(pos1).c_str()) == String(key) && buffer[pos1].hash != UINT8_MAX)
         {
           return Buffer()[pos1].value;
         }
         size_t pos2 = Hash(1, key);
-        if (String(GetKey(pos2).c_str()) == String(key))
+        if (String(GetKey(pos2).c_str()) == String(key) && buffer[pos2].hash != UINT8_MAX)
         {
           return Buffer()[pos2].value;
         }
@@ -349,18 +403,19 @@ namespace Temp
 
     bool Insert(const char* key, V value)
     {
+      [[maybe_unused]]
       static size_t recursions = 0;
       assert(recursions <= Size);
 
       size_t pos1 = Hash(0, key);
       size_t pos2 = Hash(1, key);
-      if (String(GetKey(pos1).c_str()) == String(key))
+      if (String(GetKey(pos1).c_str()) == String(key) && buffer[pos1].hash != UINT8_MAX)
       {
         buffer[pos1].value = value;
         recursions = 0;
         return true;
       }
-      else if (String(GetKey(pos2).c_str()) == String(key))
+      else if (String(GetKey(pos2).c_str()) == String(key) && buffer[pos2].hash != UINT8_MAX)
       {
         buffer[pos2].value = value;
         recursions = 0;
@@ -399,13 +454,13 @@ namespace Temp
     {
       size_t pos1 = Hash(0, key);
       size_t pos2 = Hash(1, key);
-      return buffer.size != 0 && (Buffer()[pos1].hash != UINT_MAX || Buffer()[pos2].hash != UINT_MAX);
+      return Buffer()[pos1].hash != UINT8_MAX || Buffer()[pos2].hash != UINT8_MAX;
     }
 
     void Remove(const char* key)
     {
       size_t pos1 = Hash(0, key);
-      if (String(Buffer()[pos1].key.c_str()) == String(key))
+      if (String(Buffer()[pos1].key.c_str()) == String(key) && buffer[pos1].hash != UINT8_MAX)
       {
         buffer[pos1].key.Replace("");
         buffer[pos1].value = {};
@@ -413,7 +468,7 @@ namespace Temp
         return;
       }
       size_t pos2 = Hash(1, key);
-      if (String(Buffer()[pos2].key.c_str()) == String(key))
+      if (String(Buffer()[pos2].key.c_str()) == String(key) && buffer[pos2].hash != UINT8_MAX)
       {
         buffer[pos2].key.Replace("");
         buffer[pos2].value = {};
@@ -438,11 +493,16 @@ namespace Temp
     
     size_t Find(const char* key) const
     {
+      if (!buffer.buffer)
+      {
+        return SIZE_MAX;
+      }
+
       size_t pos1 = Hash(0, key);
       const char* buffer1 = Buffer()[pos1].key.c_str();
       if (buffer1)
       {
-        if (String(buffer1) == String(key))
+        if (String(buffer1) == String(key) && buffer[pos1].hash != UINT8_MAX)
         {
           return pos1;
         }
@@ -451,7 +511,7 @@ namespace Temp
       const char* buffer2 = Buffer()[pos1].key.c_str();
       if (buffer2)
       {
-        if (String(buffer2) == String(key))
+        if (String(buffer2) == String(key) && buffer[pos2].hash != UINT8_MAX)
         {
           return pos2;
         }
@@ -493,6 +553,23 @@ namespace Temp
     return hash;
   }
 
+  // Assuming integers
+  template <typename K>
+  inline size_t BaseHash1(K v)
+  {
+    size_t hash = 13;
+    return v * 157 * hash;
+  }
+
+  template <typename K>
+  inline size_t BaseHash2(K v)
+  {
+    size_t hash = 7;
+    return v * 31 * hash;
+  }
+
+  template <typename K, typename V, size_t Size = 8192>
+  using GlobalHashMap = BaseHashMap<K, V, BaseHash1<K>, BaseHash2<K>, MemoryManager::Data::Type::GLOBAL_ARENA, Size>;
   template <typename V, size_t Size = 8192>
   using GlobalStringHashMap = BaseStringHashMap<GlobalString, V, BaseStringHash1, BaseStringHash2, MemoryManager::Data::Type::GLOBAL_ARENA, Size>;
   template <typename V, size_t Size = 8192>

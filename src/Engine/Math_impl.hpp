@@ -16,7 +16,6 @@
 #endif
 
 #include "Math_fwd.hpp"
-#include "STDPCH.hpp"
 
 namespace Temp::Math
 {
@@ -107,7 +106,7 @@ namespace Temp::Math
   template <typename T>
   T Vec2<T>::magnitude() const
   {
-    return std::sqrt(dot(*this));
+    return Sqrt(dot(*this));
   }
 
   // Squared magnitude (length) of the vector
@@ -239,7 +238,7 @@ namespace Temp::Math
   // Magnitude (length) of the vector
   T Vec3<T>::magnitude() const
   {
-    return std::sqrt(dot(*this));
+    return Sqrt(dot(*this));
   }
 
   template <typename T>

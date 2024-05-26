@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "CommonRender.hpp"
-#include "Engine.hpp"
 #include "Editor.hpp"
 #include "Event.hpp"
 #include "MemoryManager.hpp"

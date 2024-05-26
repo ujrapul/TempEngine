@@ -4,13 +4,11 @@
 #include "AudioSystem.hpp"
 
 #include "Array_fwd.hpp"
-#include "Engine.hpp"
 #include "EngineUtils.hpp"
 #include "Logger.hpp"
 #include "Math_fwd.hpp"
 #include "MemoryManager.hpp"
 #include "ThreadPool.hpp"
-#include <exception>
 #include <thread>
 #ifdef __linux__
 #include <alsa/asoundlib.h>
@@ -39,14 +37,28 @@ namespace Temp::AudioSystem
     {
       Data* data{nullptr};
       std::atomic<bool>* stopHandle{nullptr};
-      size_t index{0};
-      int i{0};
-      bool inUse{false};
+      size_t currTaskIndex{0};
+      int audioIndex{0};
+      std::atomic<bool> inUse{false};
     };
+
+    void UpdateTaskData(GlobalTaskData* taskData,
+                        Data* data,
+                        std::atomic<bool>* stopHandle,
+                        size_t currTaskIndex,
+                        int audioIndex,
+                        bool inUse)
+    {
+      taskData->data = data;
+      taskData->stopHandle = stopHandle;
+      taskData->currTaskIndex = currTaskIndex;
+      taskData->audioIndex = audioIndex;
+      taskData->inUse = inUse;
+    }
 
     std::atomic<float> masterVolume = 1.f;
     ThreadPool::Data threadPool;
-    GlobalArray<GlobalTaskData, 32> taskDatas;
+    GlobalArray<GlobalTaskData*, 32> globalTaskDatas;
 
     SNDFILE* OpenAudioFile(SF_INFO& sfInfo, const char* file)
     {
@@ -56,7 +68,7 @@ namespace Temp::AudioSystem
       while (!sndFile && retry < 100)
       {
         sndFile = sf_open(
-          std::filesystem::path(AssetsDirectory() / "Audio" / file).c_str(),
+          (ThreadPath(AssetsDirectoryGlobal().c_str()) / "Audio" / file).c_str(),
           SFM_READ,
           &sfInfo);
         ++retry;
@@ -155,7 +167,7 @@ namespace Temp::AudioSystem
     }
 
 #ifdef __linux__
-    void PlayAudioSingleLinux(Data& data, int i, std::atomic<bool>& stopHandle)
+    void PlayAudioSingleLinux(Data& data, int audioIndex, std::atomic<bool>& stopHandle)
     {
       snd_pcm_t* handle;
       if (snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0) != 0)
@@ -204,7 +216,7 @@ namespace Temp::AudioSystem
       }
 
       size_t offset = 0;
-      const auto& audioBuffer = data.buffers[i];
+      const auto& audioBuffer = data.buffers[audioIndex];
       short currentAudioBuffer[384];
       while (offset < audioBuffer.size && !data.stop && !stopHandle)
       {
@@ -214,7 +226,7 @@ namespace Temp::AudioSystem
           std::lock_guard<std::mutex> lock{data.mtx};
           for (size_t frame = offset, j = 0; j < remainingFrames * 2; ++frame, ++j)
           {
-            currentAudioBuffer[j] = audioBuffer[frame] * masterVolume * data.volumes[i];
+            currentAudioBuffer[j] = audioBuffer[frame] * masterVolume * data.volumes[audioIndex];
           }
         }
 
@@ -224,7 +236,7 @@ namespace Temp::AudioSystem
         if (rc == -EPIPE)
         {
           /* EPIPE means underrun */
-          Logger::LogErr(String("[Audio] Underrun occurred: index ") + String::ToString(i));
+          Logger::LogErr(String("[Audio] Underrun occurred: index ") + String::ToString(audioIndex));
           snd_pcm_prepare(handle);
         }
         else if (rc < 0)
@@ -326,7 +338,7 @@ namespace Temp::AudioSystem
         str[6] = '\0';
       }
 
-      Logger::LogErr(std::string("[Audio] Error: ") + std::to_string(error) + " " + operation +
+      Logger::LogErr(String("[Audio] Error: ") + String::ToString(error) + " " + operation +
                      " " + str);
 
       Global::Quit();
@@ -554,7 +566,7 @@ namespace Temp::AudioSystem
     }
 #endif
 
-    void PlayAudioSingle(Data& data, int i, std::atomic<bool>& stopHandle)
+    void PlayAudioSingle(Data& data, int audioIndex, std::atomic<bool>& stopHandle)
     {
       if (data.buffers.size == 0)
       {
@@ -563,14 +575,14 @@ namespace Temp::AudioSystem
 
       {
         std::lock_guard<std::mutex> lock{data.mtx};
-        if (data.currentlyPlayedAudio[i])
+        if (data.currentlyPlayedAudio[audioIndex])
         {
           return;
         }
-        data.currentlyPlayedAudio[i] = true;
+        data.currentlyPlayedAudio[audioIndex] = true;
       }
 #ifdef __linux__
-      PlayAudioSingleLinux(data, i, stopHandle);
+      PlayAudioSingleLinux(data, audioIndex, stopHandle);
 #elif __APPLE__
       PlayAudioSingleOSX(data, i, stopHandle);
 #elif _WIN32
@@ -578,7 +590,7 @@ namespace Temp::AudioSystem
 #endif
       {
         std::lock_guard<std::mutex> lock{data.mtx};
-        data.currentlyPlayedAudio[i] = false;
+        data.currentlyPlayedAudio[audioIndex] = false;
       }
     }
   }
@@ -589,6 +601,11 @@ namespace Temp::AudioSystem
 
     data.buffers.Fill(GlobalDynamicArray<short>(true));
     data.volumes.Fill(1.f);
+    globalTaskDatas.Fill(nullptr);
+    for (size_t i = 0; i < globalTaskDatas.size; ++i)
+    {
+      globalTaskDatas[i] = MemoryManager::CreateGlobal<GlobalTaskData>();
+    }
     ThreadPool::Initialize(threadPool);
     struct TaskData
     {
@@ -611,41 +628,41 @@ namespace Temp::AudioSystem
     ThreadPool::Wait(threadPool);
   }
 
-  void PlayAudio(Data& data, int i, std::atomic<bool>& stopHandle)
+  void PlayAudio(Data& data, int audioIndex, std::atomic<bool>& stopHandle)
   {
     int usedIndex = -1;
-    for (size_t currTask = 0; currTask < taskDatas.size; ++currTask)
+    for (size_t currTask = 0; currTask < globalTaskDatas.size; ++currTask)
     {
-      if (!taskDatas[currTask].inUse)
+      if (!globalTaskDatas[currTask]->inUse)
       {
-        taskDatas[currTask] = {&data, &stopHandle, currTask, i, true};
+        UpdateTaskData(globalTaskDatas[currTask], &data, &stopHandle, currTask, audioIndex, true);
         usedIndex = currTask;
         break;
       }
     }
     auto f = [](void* data) {
       auto taskData = static_cast<GlobalTaskData*>(data);
-      PlayAudioSingle(*taskData->data, taskData->i, *taskData->stopHandle);
-      taskDatas[taskData->index].inUse = false;
+      PlayAudioSingle(*taskData->data, taskData->audioIndex, *taskData->stopHandle);
+      globalTaskDatas[taskData->currTaskIndex]->inUse = false;
     };
     if (usedIndex > -1)
     {
-      ThreadPool::Enqueue(threadPool, f, &taskDatas[usedIndex]);
+      ThreadPool::Enqueue(threadPool, f, globalTaskDatas[usedIndex]);
     }
     else
     {
-      Logger::Log(String("No open buffers, skipping audio: ") + i);
+      Logger::Log(String("No open buffers, skipping audio: ") + audioIndex);
     }
   }
 
-  void PlayAudioLoop(Data& data, int i, std::atomic<bool>& stopHandle)
+  void PlayAudioLoop(Data& data, int audioIndex, std::atomic<bool>& stopHandle)
   {
     int usedIndex = -1;
-    for (size_t currTask = 0; currTask < taskDatas.size; ++currTask)
+    for (size_t currTask = 0; currTask < globalTaskDatas.size; ++currTask)
     {
-      if (!taskDatas[currTask].inUse)
+      if (!globalTaskDatas[currTask]->inUse)
       {
-        taskDatas[currTask] = {&data, &stopHandle, currTask, i, true};
+        UpdateTaskData(globalTaskDatas[currTask], &data, &stopHandle, currTask, audioIndex, true);
         usedIndex = currTask;
         break;
       }
@@ -654,26 +671,26 @@ namespace Temp::AudioSystem
       auto taskData = static_cast<GlobalTaskData*>(data);
       while (!taskData->data->stop && !(*taskData->stopHandle))
       {
-        PlayAudioSingle(*taskData->data, taskData->i, *taskData->stopHandle);
+        PlayAudioSingle(*taskData->data, taskData->audioIndex, *taskData->stopHandle);
       }
-      taskDatas[taskData->index].inUse = false;
+      globalTaskDatas[taskData->currTaskIndex]->inUse = false;
     };
     if (usedIndex > -1)
     {
-      ThreadPool::Enqueue(threadPool, f, &taskDatas[usedIndex]);
+      ThreadPool::Enqueue(threadPool, f, globalTaskDatas[usedIndex]);
     }
     else
     {
-      Logger::Log(String("No open buffers, skipping audio loop: ") + i);
+      Logger::Log(String("No open buffers, skipping audio loop: ") + audioIndex);
     }
   }
 
   void ChangeMasterVolume(float volume) { Temp::AudioSystem::masterVolume = volume; }
 
-  void ChangeVolume(Data& data, int i, float volume)
+  void ChangeVolume(Data& data, int audioIndex, float volume)
   {
     std::lock_guard<std::mutex> lock{data.mtx};
-    data.volumes[i] = volume;
+    data.volumes[audioIndex] = volume;
   }
 
   void Destruct(Data& data)

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Input.hpp"
+#include "Queue.hpp"
 
 // #define test_bit(bit, array)    ((array)[(bit)/8] & (1 << ((bit)%8)))
 
@@ -20,8 +21,8 @@ namespace Temp::Input
 
     struct KeyQueue
     {
-      std::queue<KeyboardCode> pressQueue;
-      std::queue<KeyboardCode> releaseQueue;
+      GlobalQueue<KeyboardCode> pressQueue;
+      GlobalQueue<KeyboardCode> releaseQueue;
     };
 
     KeyQueue keyQueue;
@@ -29,22 +30,22 @@ namespace Temp::Input
 
   void PushPressKeyQueue(KeyboardCode keyCode)
   {
-    keyQueue.pressQueue.push(keyCode);
+    keyQueue.pressQueue.Push(keyCode);
   }
 
   void PushReleaseKeyQueue(KeyboardCode keyCode)
   {
-    keyQueue.releaseQueue.push(keyCode);
+    keyQueue.releaseQueue.Push(keyCode);
   }
 
-  KeyboardCode PopKeyQueue(std::queue<KeyboardCode>& _keyQueue)
+  KeyboardCode PopKeyQueue(GlobalQueue<KeyboardCode>& _keyQueue)
   {
-    if (_keyQueue.size() == 0)
+    if (_keyQueue.Empty())
     {
       return KeyboardCode::KB_MAX;
     }
-    KeyboardCode keyCode = _keyQueue.front();
-    _keyQueue.pop();
+    KeyboardCode keyCode = _keyQueue.Front();
+    _keyQueue.Pop();
     return keyCode;
   }
 

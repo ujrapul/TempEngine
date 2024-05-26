@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "STDPCH.hpp"
 #include "Camera.hpp"
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
@@ -10,7 +11,6 @@
 #include "gl.h"
 #endif
 #include "EngineUtils.hpp"
-#include "FontLoader.hpp"
 #include "Math.hpp"
 #include "OpenGLWrapper.hpp"
 #include "Shader.hpp"

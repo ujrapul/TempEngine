@@ -3,8 +3,10 @@
 
 #pragma once
 
-#include "Array_fwd.hpp"
+#include "String.hpp"
 #include "Logger.hpp"
+#include "Array.hpp" // IWYU pragma: keep
+#include <cstdio>
 
 namespace Temp::TGA
 {
@@ -29,14 +31,19 @@ namespace Temp::TGA
   // NOTE: Exporting from Krita requires to flip the image to come right-side up here
   inline bool Read(const String& filename, Header& header, DynamicArray<uint8_t>& pixels)
   {
-    std::ifstream file(filename.c_str(), std::ios::binary);
+    FILE* file = fopen(filename.c_str(), "rb");
+    
     if (!file)
     {
       Logger::LogErr(String("[TGA] Could not open file: ") + filename);
       return false;
     }
 
-    file.read(reinterpret_cast<char*>(&header), sizeof(Header));
+    if (fread(&header, sizeof(Header), 1, file) != 1)
+    {
+      Logger::LogErr(String("[TGA] Failed to read header for file: ") + filename);
+      goto end;
+    }
 
     // std::cout << header.width << std::endl;
 
@@ -45,15 +52,23 @@ namespace Temp::TGA
     {
       Logger::LogErr(String("[TGA] Unsupported TGA image type: ") +
                      String::ToString(static_cast<int>(header.imageType)));
-      return false;
+      goto end;
     }
 
     // Move the file pointer to the pixel data
-    file.seekg(header.idLength + sizeof(Header));
+    if (fseek(file, header.idLength + sizeof(struct Header), SEEK_SET) != 0)
+    {
+      Logger::LogErr(String("[TGA] Failed to seek to pixel data."));
+      goto end;
+    }
 
     // Read pixel data
-    pixels.Resize(header.width * header.height * (header.bitsPerPixel / 8));
-    file.read(reinterpret_cast<char*>(pixels.buffer), pixels.size);
+    pixels.Resize((size_t)(header.width * header.height * (header.bitsPerPixel / 8)));
+    if (fread(pixels.buffer, 1, pixels.size, file) != pixels.size)
+    {
+      Logger::LogErr(String("[TGA] Failed to read pixel data."));
+      goto end;
+    }
     // for (size_t i = 0; i < pixels.size(); i += 4)
     // {
     //   auto b = pixels[i];
@@ -67,5 +82,9 @@ namespace Temp::TGA
     // }
 
     return true;
+
+end:
+    fclose(file);
+    return false;
   }
 }

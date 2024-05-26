@@ -5,6 +5,7 @@
 
 #include "STDPCH.hpp"
 #include "String.hpp"
+#include "FileSystem.hpp"
 
 namespace Temp::Render
 {
@@ -37,7 +38,6 @@ namespace Temp::Render
   }
 
   const GlobalDynamicArray<const char*>& ShaderFiles();
-  const std::filesystem::path& GetShadersPath();
-  ThreadedDynamicArray<ThreadedString> GlobalShaderFiles();
-  GlobalDynamicArray<std::filesystem::file_time_type>& GlobalShaderFilesTimes();
+  Path GetShadersPath();
+  const GlobalDynamicArray<GlobalString>& GlobalShaderFiles();
 }
