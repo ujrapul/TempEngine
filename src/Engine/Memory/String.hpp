@@ -5,9 +5,9 @@
 
 #include "MemoryManager.hpp"
 #include "MemoryUtils.hpp"
+#include "Stream.hpp"
 #include <cstdint>
 #include <cstring>
-#include <ostream>
 
 namespace Temp
 {
@@ -414,6 +414,16 @@ namespace Temp
       return out;
     }
 
+    static BaseString ToString(unsigned long int i)
+    {
+      BaseString out;
+      int length = snprintf(NULL, 0, "%zu", i);
+      out.Resize((size_t)length + 1);
+      out.size = length;
+      sprintf(out.Buffer(), "%zu", i);
+      return out;
+    }
+
     static BaseString ToString(signed long int i)
     {
       BaseString out;
@@ -622,11 +632,11 @@ namespace Temp
     }
   };
 
-  template<MemoryManager::Data::Type Type = MemoryManager::Data::Type::TEMP>
-  inline std::ostream& operator<<(std::ostream& os, const BaseString<Type>& string)
+  template <MemoryManager::Data::Type type = MemoryManager::Data::TEMP>
+  constexpr Stream& operator<<(Stream& out, const BaseString<type>& data)
   {
-    os << string.buffer;
-    return os;
+    out << data.buffer;
+    return out;
   }
 
   typedef BaseString<MemoryManager::Data::Type::SCENE_ARENA> SceneString;

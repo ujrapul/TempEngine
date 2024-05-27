@@ -31,6 +31,8 @@ namespace Temp::TGA
   // NOTE: Exporting from Krita requires to flip the image to come right-side up here
   inline bool Read(const String& filename, Header& header, DynamicArray<uint8_t>& pixels)
   {
+    int components;
+    DynamicArray<uint8_t> bufferedPixels;
     FILE* file = fopen(filename.c_str(), "rb");
     
     if (!file)
@@ -63,24 +65,32 @@ namespace Temp::TGA
     }
 
     // Read pixel data
-    pixels.Resize((size_t)(header.width * header.height * (header.bitsPerPixel / 8)));
-    if (fread(pixels.buffer, 1, pixels.size, file) != pixels.size)
+    components = header.bitsPerPixel / 8;
+    bufferedPixels.Resize((size_t)(header.width * header.height * components));
+    if (fread(bufferedPixels.buffer, 1, bufferedPixels.size, file) != bufferedPixels.size)
     {
       Logger::LogErr(String("[TGA] Failed to read pixel data."));
       goto end;
     }
-    // for (size_t i = 0; i < pixels.size(); i += 4)
-    // {
-    //   auto b = pixels[i];
-    //   auto g = pixels[i + 1];
-    //   auto r = pixels[i + 2];
-    //   auto a = pixels[i + 3];
-    //   pixels[i] = r;
-    //   pixels[i + 1] = g;
-    //   pixels[i + 2] = b;
-    //   pixels[i + 3] = a;
-    // }
 
+    // Check if the vertical orientation is set to 0
+    // If so, flip it
+    if ((header.imageDescriptor & (1 << 3)) == 0 && (header.imageDescriptor & (1 << 4)) == 0)
+    {
+      pixels.Resize(bufferedPixels.size);
+      for (int r = 0; r < header.height; ++r)
+      {
+        unsigned char* src = &bufferedPixels.buffer[r * components * header.width];
+        unsigned char* dst = &pixels.buffer[(header.height - r - 1) * components * header.width];
+        memcpy(dst, src, components * header.width);
+      }
+    }
+    else
+    {
+      pixels = std::move(bufferedPixels);
+    }
+
+    fclose(file);
     return true;
 
 end:

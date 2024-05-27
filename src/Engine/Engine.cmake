@@ -161,6 +161,13 @@ function(make_library TARGET)
       "${CMAKE_SCRIPT_DIR}/LICENSE.txt"
       $<TARGET_FILE_DIR:${TARGET}>)
 
+      if (CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SCRIPT_DIR}/lock.file"
+        $<TARGET_FILE_DIR:${TARGET}>)
+  endif()
+
   if (LINUX)
     target_link_libraries(${TARGET} PRIVATE ALSA::ALSA)
     target_link_libraries(${TARGET} PRIVATE SndFile::sndfile)

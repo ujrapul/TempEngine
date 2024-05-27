@@ -47,6 +47,7 @@ namespace Temp::Entity
   void Init(Data& entityData)
   {
     entityData = {};
+    numEntities = 0;
     entityData.used.Reserve(Entity::MAX);
     entityData.componentBits.Reserve(Entity::MAX);
     Component::Container::Init(entityData.componentContainer);
@@ -81,6 +82,7 @@ namespace Temp::Entity
       if (entityData.used[i])
       {
         Destroy(entityData, i);
+        --numEntities;
       }
     }
     Component::Container::Destruct(entityData.componentContainer);
@@ -93,5 +95,5 @@ namespace Temp::Entity
     Component::Container::Reset(entityData.componentContainer);
   }
 
-  size_t Count(Data& entityData) { return entityData.used.size; }
+  size_t Count(Data& entityData) { return numEntities; }
 }

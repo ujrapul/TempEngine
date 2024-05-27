@@ -4,6 +4,7 @@
 #pragma once
 
 #include "Array.hpp" // IWYU pragma: keep
+#include "Stream.hpp"
 #ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable : 4201)
@@ -17,7 +18,6 @@
 #endif
 
 #include <immintrin.h>
-#include <ostream>
 
 namespace Temp::Math
 {
@@ -139,9 +139,9 @@ namespace Temp::Math
   };
 
   template <typename T>
-  inline std::ostream &operator<<(std::ostream &os, const Vec2<T> &vec2)
+  inline Stream &operator<<(Stream &os, const Vec2<T> &vec2)
   {
-    os << "Vec2(" << vec2.x << " " << vec2.y << ")";
+    os << "Vec2(" << vec2.x << " " << vec2.y << ")\n";
     return os;
   }
 
@@ -212,9 +212,9 @@ namespace Temp::Math
   };
 
   template <typename T>
-  inline std::ostream &operator<<(std::ostream &os, const Vec3<T> &vec3)
+  inline Stream &operator<<(Stream &os, const Vec3<T> &vec3)
   {
-    os << "Vec3(" << vec3.x << " " << vec3.y << " " << vec3.z << ")";
+    os << "Vec3(" << vec3.x << " " << vec3.y << " " << vec3.z << ")\n";
     return os;
   }
 
@@ -291,9 +291,9 @@ namespace Temp::Math
   };
 
   template <typename T>
-  inline std::ostream &operator<<(std::ostream &os, const Vec4<T> &vec4)
+  inline Stream &operator<<(Stream &os, const Vec4<T> &vec4)
   {
-    os << "Vec4(" << vec4.x << " " << vec4.y << " " << vec4.z << " " << vec4.w << ")";
+    os << "Vec4(" << vec4.x << " " << vec4.y << " " << vec4.z << " " << vec4.w << ")\n";
     return os;
   }
 
@@ -432,13 +432,13 @@ namespace Temp::Math
     static Mat4 orthographic(float left, float right, float bottom, float top, float _near, float _far);
   };
 
-  inline std::ostream &operator<<(std::ostream &os, const Mat4 &mat4)
+  inline Stream &operator<<(Stream &os, const Mat4 &mat4)
   {
     os << "Mat4\n"
        << mat4.rows[0].x << "\t" << mat4.rows[0].y << "\t" << mat4.rows[0].z << "\t" << mat4.rows[0].w << "\n"
        << mat4.rows[1].x << "\t" << mat4.rows[1].y << "\t" << mat4.rows[1].z << "\t" << mat4.rows[1].w << "\n"
        << mat4.rows[2].x << "\t" << mat4.rows[2].y << "\t" << mat4.rows[2].z << "\t" << mat4.rows[2].w << "\n"
-       << mat4.rows[3].x << "\t" << mat4.rows[3].y << "\t" << mat4.rows[3].z << "\t" << mat4.rows[3].w;
+       << mat4.rows[3].x << "\t" << mat4.rows[3].y << "\t" << mat4.rows[3].z << "\t" << mat4.rows[3].w << "\n";
     return os;
   }
 

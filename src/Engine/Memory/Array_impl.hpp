@@ -7,6 +7,7 @@
 #include "Logger.hpp"
 #include "MemoryManager.hpp"
 #include "MemoryUtils.hpp"
+#include "Stream.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -37,9 +38,9 @@ namespace Temp
       return;
     }
 
-    if (*this == other)
+    if (*this == other && prevOffset == other.prevOffset)
     {
-      return;
+      assert(false);
     }
 
     if constexpr (Type == MemoryManager::Data::Type::THREAD_TEMP)
@@ -124,8 +125,7 @@ namespace Temp
   template <typename T, int SizeOfArray, MemoryManager::Data::Type Type>
   constexpr bool Array<T, SizeOfArray, Type>::operator==(const Array& other) const
   {
-    bool membersSame = prevOffset == other.prevOffset
-      && size == other.size;
+    bool membersSame = size == other.size;
 
     if (!membersSame)
     {
@@ -278,9 +278,9 @@ namespace Temp
       return;
     }
 
-    if (*this == other)
+    if (*this == other && prevOffset == other.prevOffset && offset == other.offset)
     {
-      return;
+      assert(false);
     }
 
     if constexpr (Type == MemoryManager::Data::Type::THREAD_TEMP)
@@ -379,9 +379,7 @@ namespace Temp
   template <typename T, MemoryManager::Data::Type Type>
   constexpr bool DynamicArray<T, Type>::operator==(const DynamicArray& other) const
   {
-    bool membersSame = offset == other.offset
-      && prevOffset == other.prevOffset
-      && capacity == other.capacity
+    bool membersSame = capacity == other.capacity
       && size == other.size;
 
     if (!membersSame)
@@ -612,6 +610,23 @@ namespace Temp
 
     buffer = newBuffer;
     capacity = newCapacity;
+  }
+
+  template <typename T, MemoryManager::Data::Type Type>
+  inline Stream& operator<<(Stream& os, const DynamicArray<T, Type>& array)
+  {
+    os << "DynamicArray(\n";
+    os << "\tOffset: " << array.offset << "\n";
+    os << "\tPrevOffset: " << array.prevOffset << "\n";
+    os << "\tSize: " << array.size << "\n";
+    os << "\tCapacity: " << array.capacity << "\n";
+    os << "\tData: ";
+    for (auto& item : array)
+    {
+      os << item << " ";
+    }
+    os << ")\n";
+    return os;
   }
 
   template <typename T, MemoryManager::Data::Type Type>

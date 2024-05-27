@@ -31,6 +31,8 @@ namespace Temp::Event::UnitTests
     Camera::SetProjection(Camera::Projection::ORTHOGRAPHIC);
 
     Scene::Data scene;
+    Scene::SceneFns sceneFns;
+    scene.sceneFns = &sceneFns;
     Scene::Construct(scene);
     Entity::Init(scene.entityData);
 

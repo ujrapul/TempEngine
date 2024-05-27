@@ -29,7 +29,7 @@ function(make_executable TARGET OUTPUT_NAME)
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${OUTPUT_NAME}"
   )
 
-target_compile_options(${TARGET} PRIVATE
+  target_compile_options(${TARGET} PRIVATE
     # wd4100 - MSVC silence unused parameters
     $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4100>
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wno-unused-parameter>

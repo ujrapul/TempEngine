@@ -20,49 +20,49 @@ namespace Temp::Math
   namespace UnitTests
   {
     // Function to compare floating-point values with a small epsilon
-    bool floatEquals(float a, float b)
+    inline bool floatEquals(float a, float b)
     {
       return FloatEqual(a, b);
     }
 
     // Function to compare Vec2 objects
-    bool vec2Equals(const Vec2f &v1, const Vec2f &v2)
+    inline bool vec2Equals(const Vec2f &v1, const Vec2f &v2)
     {
       return v1 == v2;
     }
 
     // Function to compare Vec3 objects
-    bool vec3Equals(const Vec3f &v1, const Vec3f &v2)
+    inline bool vec3Equals(const Vec3f &v1, const Vec3f &v2)
     {
       return v1 == v2;
     }
 
     // Function to compare Vec4 objects
-    bool vec4Equals(const Vec4f &v1, const Vec4f &v2)
+    inline bool vec4Equals(const Vec4f &v1, const Vec4f &v2)
     {
       return v1 == v2;
     }
 
     // Function to compare Mat2 objects
-    bool mat2Equals(const Mat2 &m1, const Mat2 &m2)
+    inline bool mat2Equals(const Mat2 &m1, const Mat2 &m2)
     {
       return m1 == m2;
     }
 
     // Function to compare Mat3 objects
-    bool mat3Equals(const Mat3 &m1, const Mat3 &m2)
+    inline bool mat3Equals(const Mat3 &m1, const Mat3 &m2)
     {
       return m1 == m2;
     }
 
     // Function to compare Mat4 objects
-    bool mat4Equals(const Mat4 &m1, const Mat4 &m2)
+    inline bool mat4Equals(const Mat4 &m1, const Mat4 &m2)
     {
       return m1 == m2;
     }
 
     // Function to run the unit tests
-    void Run()
+    inline void Run()
     {
       assert(Sqrt(4) == 2);
       assert(Sqrt(100) == 10);

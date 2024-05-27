@@ -9,7 +9,9 @@
 #include "FontLoader.hpp"
 #include "Hoverable.hpp"
 #include "LevelSerializer.hpp"
+#include "Logger.hpp"
 #include "Math.hpp"
+#include "MemoryManager.hpp"
 #include "Scene.hpp"
 #include "SceneObject.hpp"
 #include "Shader.hpp"
@@ -46,7 +48,7 @@ namespace Temp::Editor
 
     void PropertiesFile(Scene::Data& scene, SceneObject::Data& selectedObject)
     {
-      char file[4096];
+      String file(true, 256);
       String fileStr;
       switch (selectedObject.type)
       {
@@ -57,16 +59,17 @@ namespace Temp::Editor
         default:
           break;
       };
-      strcpy(file, fileStr.c_str());
+      strcpy(file.buffer, fileStr.c_str());
       file[fileStr.size] = '\0';
 
-      if (ImGui::InputText("File", file, 4096, ImGuiInputTextFlags_EnterReturnsTrue))
+      if (ImGui::InputText("File", file.buffer, 256, ImGuiInputTextFlags_EnterReturnsTrue))
       {
+        // Logger::LogErr(String("Current stack usage: ") + String::ToString(get_stack_usage()));
         DestructDrawable(scene, selectedObject);
         switch (selectedObject.type)
         {
           case EntityType::SPRITE:
-            static_cast<Sprite::Data*>(selectedObject.data)->fileName = file;
+            static_cast<Sprite::Data*>(selectedObject.data)->fileName = file.c_str();
           default:
             break;
         };
@@ -107,15 +110,16 @@ namespace Temp::Editor
     void PropertiesPosition(Scene::Data& scene, SceneObject::Data& selectedObject)
     {
       auto& position = Scene::Get<Component::Type::POSITION2D>(scene, selectedObject.entity);
-      ImGui::DragFloat2("Position",
+      if (ImGui::DragFloat2("Position",
                         position.data,
                         0.5f,
                         -FLT_MAX,
                         FLT_MAX,
                         "%.3f",
-                        ImGuiSliderFlags_None);
-
-      SceneObject::Translate(scene, selectedObject, {position.x, position.y, 0});
+                        ImGuiSliderFlags_None))
+      {
+        SceneObject::Translate(scene, selectedObject, {position.x, position.y, 0});
+      }
     }
 
     void PropertiesText(TextBox::Data& textBox)
@@ -134,11 +138,12 @@ namespace Temp::Editor
         return;
       }
 
+      bool changed = false;
       auto& scale = Scene::Get<Component::Type::SCALE>(scene, selectedObject.entity);
       switch ((EntityType::EntityType)selectedObject.type)
       {
         case EntityType::SPRITE:
-          ImGui::DragFloat2("Scale", //
+          changed = ImGui::DragFloat2("Scale", //
                             scale.data,
                             0.005f,
                             -FLT_MAX,
@@ -147,7 +152,7 @@ namespace Temp::Editor
                             ImGuiSliderFlags_None);
           break;
         default:
-          ImGui::DragFloat("Scale", //
+          changed = ImGui::DragFloat("Scale", //
                            &scale.x,
                            0.005f,
                            -FLT_MAX,
@@ -157,20 +162,23 @@ namespace Temp::Editor
           break;
       }
 
-      switch ((EntityType::EntityType)selectedObject.type)
+      if (changed)
       {
-        case EntityType::TEXTBUTTON:
-          TextButton::Scale(scene, *static_cast<TextButton::Data*>(selectedObject.data), scale.x);
-          break;
-        case EntityType::TEXTBOX:
-          SceneObject::Scale(scene, selectedObject, scale.x);
-          break;
-        case EntityType::SPRITE:
-          SceneObject::Scale(scene, selectedObject, {scale.x, scale.y});
-          break;
-        default:
-          SceneObject::Scale(scene, selectedObject, scale.x);
-          break;
+        switch ((EntityType::EntityType)selectedObject.type)
+        {
+          case EntityType::TEXTBUTTON:
+            TextButton::Scale(scene, *static_cast<TextButton::Data*>(selectedObject.data), scale.x);
+            break;
+          case EntityType::TEXTBOX:
+            SceneObject::Scale(scene, selectedObject, scale.x);
+            break;
+          case EntityType::SPRITE:
+            SceneObject::Scale(scene, selectedObject, {scale.x, scale.y});
+            break;
+          default:
+            SceneObject::Scale(scene, selectedObject, scale.x);
+            break;
+        }
       }
     }
 
@@ -375,14 +383,14 @@ namespace Temp::Editor
     }
     if (ImGui::Button("Sprite"))
     {
-      auto* ctorData = new Sprite::ConstructData{
-        .pos = {-256.f, -256.f},
-        .scale = {512.f, 512.f},
-      };
+      auto* ctorData = MemoryManager::CreateScene<Sprite::ConstructData>(
+        Math::Vec2f{-256.f, -256.f},
+        Math::Vec2f{512.f, 512.f}
+      );
 
-      auto* sprite = new Sprite::Data{
-        .fileName = "ground.tga",
-      };
+      auto* sprite = MemoryManager::CreateScene<Sprite::Data>(
+        "ground.tga"
+      );
       SceneObject::Data object{
         sprite,
         ctorData,

@@ -17,7 +17,9 @@ namespace Temp::ThreadPool::UnitTests
     ThreadPool::Data threadPool{};
     ThreadPool::Initialize(threadPool);
 
+    Scene::SceneFns sceneFns;
     Scene::Data scene;
+    scene.sceneFns = &sceneFns;
     Scene::Initialize(scene);
 
     AssertEqual("Test ThreadPool Number of Threads",
@@ -57,5 +59,6 @@ namespace Temp::ThreadPool::UnitTests
 
     Scene::Destruct(scene);
     Scene::Destroy(scene);
+    ThreadPool::Destruct(threadPool);
   }
 }

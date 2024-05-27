@@ -326,6 +326,8 @@ namespace Temp::TextBox
     Render::OpenGLWrapper::Set1FloatShaderProperty(drawable.shaderProgram,
                                                    "u_thickness",
                                                    textBox.enableOutline ? 0.75f : 0.5f);
+    Render::OpenGLWrapper::Set1FloatShaderProperty(drawable.shaderProgram, "u_softness", 0.01f);
+    Render::OpenGLWrapper::Set1FloatShaderProperty(drawable.shaderProgram, "u_outline_thickness", 0.6f);
     // drawable.disableDepth = true;
 
     Temp::Component::Drawable::UpdateVertexIndexBuffers(drawable);

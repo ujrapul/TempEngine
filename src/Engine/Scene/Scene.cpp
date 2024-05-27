@@ -69,7 +69,8 @@ namespace Temp::Scene
     {
       Scene::ResetAllocatedTypes(scene);
     }
-#ifndef EDITOR
+#if not defined(UT)
+#if not defined(EDITOR)
     isDeserialized = LevelSerializer::Deserialize(scene, (String(scene.sceneFns->name.c_str()) + ".level").c_str());
     if (isDeserialized)
     {
@@ -82,9 +83,9 @@ namespace Temp::Scene
         SceneObject::Construct(scene, scene.objects[i]);
       }
 #ifndef EDITOR
-
       scene.sceneFns->ConstructFunc(scene);
     }
+#endif
 #endif
   }
 

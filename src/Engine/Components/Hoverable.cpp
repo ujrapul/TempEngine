@@ -39,12 +39,13 @@ namespace Temp::Component::Hoverable
     hoverable.drawable.vertices.Replace(vertices, 8);
     hoverable.drawable.indices.Replace(indices, 6);
     Drawable::UpdateData(hoverable.drawable);
-    Drawable::Construct(hoverable.drawable,
+    Drawable::Construct(hoverable.drawable, //
                         Render::EditorShaderIdx::HOVERABLE,
                         GL_STATIC_DRAW,
                         {2},
                         2);
     Drawable::SetTranslate(hoverable.drawable, {0});
+    Render::OpenGLWrapper::UnbindBuffers();
   }
 
   void DestructDrawable(Hoverable::Data& hoverable) { Drawable::Destruct(hoverable.drawable); }
@@ -65,8 +66,8 @@ namespace Temp::Component::Hoverable
     float endX = beginX + hoverable.width * hoverable.scale.x;
     float endY = beginY + hoverable.height * hoverable.scale.y;
 
-    return viewSpaceCoords.x >= beginX && viewSpaceCoords.x <= endX &&
-           viewSpaceCoords.y >= beginY && viewSpaceCoords.y <= endY;
+    return viewSpaceCoords.x >= beginX && viewSpaceCoords.x <= endX && viewSpaceCoords.y >= beginY &&
+           viewSpaceCoords.y <= endY;
   }
 
   bool IsInsideRaycast(const Data& hoverable, float x, float y)
@@ -74,8 +75,7 @@ namespace Temp::Component::Hoverable
     auto viewSpaceCoords = Camera::ConvertScreenCoordsToViewSpace(x, y);
     auto localSpaceCoords = hoverable.model.inverse() * viewSpaceCoords;
     auto rayOrigin = Math::Vec3f(localSpaceCoords.x, localSpaceCoords.y, 10.f);
-    auto rayDirection = (Math::Vec3f(localSpaceCoords.x, localSpaceCoords.y, -10.f) - rayOrigin)
-                          .normalize();
+    auto rayDirection = (Math::Vec3f(localSpaceCoords.x, localSpaceCoords.y, -10.f) - rayOrigin).normalize();
 
     Math::Vec3f intersectionPoint;
     return Math::RayMeshIntersect(rayOrigin, rayDirection, hoverable.triangles, intersectionPoint);

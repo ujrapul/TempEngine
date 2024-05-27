@@ -61,7 +61,7 @@ namespace Temp::SceneObject
   // NOTE: For now make sure to only use this in DrawConstruct or DrawUpdate
   void SetActive(Scene::Data& scene, Data& object, bool active);
 
-  inline std::ostream& operator<<(std::ostream& os, const Data& object)
+  inline Stream& operator<<(Stream& os, const Data& object)
   {
     os << "SceneObject(" << object.data << " " << object.constructData << " " << object.name << " "
        << object.type << " " << object.entity << ")";

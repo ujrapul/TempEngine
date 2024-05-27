@@ -12,10 +12,10 @@
 #include "Queue.hpp" // IWYU pragma: keep
 #include "FileWriter.hpp" // IWYU pragma: keep
 #include "FileSystem.hpp" // IWYU pragma: keep
-#include "TGA.hpp" // IWYU pragma: keep
 #include "Logger.hpp" // IWYU pragma: keep
 #include "EngineUtils.hpp" // IWYU pragma: keep
 #include "OpenGLWrapper.hpp" // IWYU pragma: keep
+#include "Stream.hpp" // IWYU pragma: keeps
 
 extern template class std::allocator<char const*>;
 

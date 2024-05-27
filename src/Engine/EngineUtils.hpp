@@ -16,6 +16,10 @@
 #else
 #include <unistd.h>
 #include <dirent.h>
+
+#include <pthread.h>
+#include <sys/syscall.h>
+#include <linux/limits.h>
 #endif
 
 namespace Temp
@@ -190,6 +194,30 @@ namespace Temp
       closedir(d);
     }
     return out;
+#elif defined(_WIN32)
+#endif
+  }
+
+  inline size_t GetStackUsage()
+  {
+#if defined(__linux__)
+    pthread_t thread = pthread_self();
+    pthread_attr_t attr;
+    pthread_getattr_np(thread, &attr);
+
+    void* stack_addr;
+    size_t stack_size;
+    pthread_attr_getstack(&attr, &stack_addr, &stack_size);
+
+    pthread_attr_destroy(&attr);
+
+    // Calculate the stack usage by comparing the current stack pointer with the start of the stack.
+    // This is just an approximation.
+    void* current_stack_ptr;
+    asm("mov %%rsp, %0" : "=r"(current_stack_ptr));
+
+    return static_cast<char*>(stack_addr) + stack_size - static_cast<char*>(current_stack_ptr);
+#elif defined(__APPLE__)
 #elif defined(_WIN32)
 #endif
   }

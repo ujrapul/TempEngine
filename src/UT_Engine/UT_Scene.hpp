@@ -17,7 +17,10 @@ namespace Temp::Scene::UnitTests
   {
     SceneObject::Init();
 
+    Scene::SceneFns sceneFns;
     Scene::Data scene;
+    scene.sceneFns = &sceneFns;
+    Scene::Construct(scene);
     Entity::Init(scene.entityData);
     SceneObject::Data object{
       .data = new Mock::Data(),

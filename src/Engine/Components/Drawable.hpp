@@ -42,9 +42,27 @@ namespace Temp::Component::Drawable
     bool operator==(const Data& other) const = default;
   };
 
-  inline std::ostream& operator<<(std::ostream& os, const Drawable::Data& drawable)
+  inline Stream& operator<<(Stream& os, const Drawable::Data& drawable)
   {
-    os << "Drawable(" << drawable.offset << " " << drawable.model << ")";
+    os << "Drawable(\n"
+       << "Vertices: " << drawable.vertices
+       << "Indices: " << drawable.indices
+       << "Buffers: " << drawable.buffers
+       << "Offset: " << drawable.offset
+       << "Model: " << drawable.model
+       << "Entity: " << drawable.entity << "\n"
+       << "VAO: " << drawable.VAO << "\n"
+       << "VBO: " << drawable.VBO << "\n"
+       << "EBO: " << drawable.EBO << "\n"
+       << "Texture: " << drawable.texture << "\n"
+       << "Shader Program: " << drawable.shaderProgram << "\n"
+       << "Num Instances: " << drawable.numInstances << "\n"
+       << "Indices Size: " << drawable.indicesSize << "\n"
+       << "Buffer Draw: " << drawable.bufferDraw << "\n"
+       << "Visible: " << drawable.visible << "\n"
+       << "Disable depth: " << drawable.disableDepth << "\n"
+       << "Shader Idx: " << drawable.shaderIdx << "\n"
+       << ")\n";
     return os;
   }
 

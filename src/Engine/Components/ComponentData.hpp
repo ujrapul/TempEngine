@@ -159,8 +159,9 @@ namespace Temp
         return data.cacheEntities[entity].component;
       }
       Logger::LogErr("[ComponentData] Get const: Warning! Accessing invalid entity!");
+#ifndef UT
       assert(false);
-      throw std::exception();
+#endif
       return dummy<T>;
     }
 
@@ -178,8 +179,9 @@ namespace Temp
         return data.cacheEntities[entity].component;
       }
       Logger::LogErr("[ComponentData] Get: Warning! Accessing invalid entity!");
+#ifndef UT
       assert(false);
-      throw std::exception();
+#endif
       return dummy<T>;
     }
 

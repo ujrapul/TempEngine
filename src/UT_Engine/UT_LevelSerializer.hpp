@@ -9,13 +9,10 @@
 #include "LevelSerializer.hpp"
 #include "TextBox.hpp"
 #include "TextButton.hpp"
-#include "Math.hpp"
-#include "Entity.hpp"
-#include "Engine.hpp"
 
 namespace Temp::LevelSerializer::UnitTests
 {
-  inline void TestDeserialize(Scene::Data &scene, const std::string &testName, const char* file)
+  inline void TestDeserialize(Scene::Data &scene, const String &testName, const char* file)
   {
     Assert(testName + " Test Level Parsing", Deserialize(scene, file));
 
@@ -57,7 +54,9 @@ namespace Temp::LevelSerializer::UnitTests
   inline void Run()
   {
     SceneObject::Init();
+    Scene::SceneFns sceneFns;
     Scene::Data scene;
+    scene.sceneFns = &sceneFns;
     Entity::Init(scene.entityData);
     scene.sceneFns->name = "SerializeTest";
 

@@ -3,9 +3,8 @@
 
 #pragma once
 
+#include "STDPCH.hpp"
 #include "Engine.hpp" // IWYU pragma: keep
-#include "Logger.hpp"
-#include <iostream>
 
 namespace Temp
 {
@@ -48,16 +47,16 @@ namespace Temp
   {
     if (!value)
     {
-      std::cout << "FAILED [\033[91m\033[1m " << testName << "\033[0m ]\n";
+      printf("FAILED [\033[91m\033[1m %s\033[0m ]\n", testName);
     }
     assert(value);
   }
 
-  inline void Assert(const std::string& testName, bool value)
+  inline void Assert(const String& testName, bool value)
   {
     if (!value)
     {
-      std::cout << "FAILED [\033[91m\033[1m " << testName << "\033[0m ]\n";
+      printf("FAILED [\033[91m\033[1m %s\033[0m ]\n", testName.c_str());
     }
     assert(value);
   }
@@ -67,19 +66,19 @@ namespace Temp
   {
     if (v1 != v2)
     {
-      std::cout << "FAILED EQUAL [\033[91m\033[1m " << testName << ": " << v1 << " " << v2
-                << "\033[0m ]\n";
+      inout << "FAILED EQUAL [\033[91m\033[1m " << testName << ":\n" << v1 << v2
+            << "\033[0m ]\n";
     }
     assert(v1 == v2);
   }
 
   template <typename T>
-  inline void AssertEqual(const std::string& testName, T v1, T v2)
+  inline void AssertEqual(const String& testName, T v1, T v2)
   {
     if (v1 != v2)
     {
-      std::cout << "FAILED EQUAL [\033[91m\033[1m " << testName << ": " << v1 << " " << v2
-                << "\033[0m ]\n";
+      inout << "FAILED EQUAL [\033[91m\033[1m " << testName << ":\n" << v1 << v2
+              << "\033[0m ]\n";
     }
     assert(v1 == v2);
   }
@@ -89,19 +88,19 @@ namespace Temp
   {
     if (v1 == v2)
     {
-      std::cout << "FAILED NOT EQUAL [\033[91m\033[1m " << testName << ": " << v1 << " " << v2
-                << "\033[0m ]\n";
+      inout << "FAILED NOT EQUAL [\033[91m\033[1m " << testName << ":\n" << v1 << v2
+            << "\033[0m ]\n";
     }
     assert(v1 != v2);
   }
 
   template <typename T>
-  inline void AssertNotEqual(const std::string& testName, T v1, T v2)
+  inline void AssertNotEqual(const String& testName, T v1, T v2)
   {
     if (v1 == v2)
     {
-      std::cout << "FAILED NOT EQUAL [\033[91m\033[1m " << testName << ": " << v1 << " " << v2
-                << "\033[0m ]\n";
+      inout << "FAILED NOT EQUAL [\033[91m\033[1m " << testName << ":\n" << v1 << v2
+            << "\033[0m ]\n";
     }
     assert(v1 != v2);
   }

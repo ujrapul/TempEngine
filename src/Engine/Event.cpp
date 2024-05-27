@@ -159,7 +159,7 @@ namespace Temp::Event
     if (scene.state == Scene::State::RUN && EventData.buttonPressed[1])
     {
       auto& hoverableArray = Scene::GetComponentArray<Component::Type::HOVERABLE>(scene);
-      for (size_t i = 0; i < hoverableArray.size; ++i)
+      for (int i = hoverableArray.size - 1; i >= 0; --i)
       {
         auto& hoverable = hoverableArray.array[i];
         Entity::id entity = hoverableArray.sparseEntities[i];

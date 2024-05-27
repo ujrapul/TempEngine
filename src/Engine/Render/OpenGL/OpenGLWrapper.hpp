@@ -149,7 +149,7 @@ namespace Temp::Render::OpenGLWrapper
 
   inline void UpdateVBO(GLuint VBO, void* data, size_t arraySize, size_t typeSize = sizeof(float), int BufferDraw = GL_STATIC_DRAW)
   {
-    if (arraySize == 0)
+    if (arraySize == 0 || !data)
     {
       return;
     }
@@ -164,7 +164,6 @@ namespace Temp::Render::OpenGLWrapper
     {
       glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
     }
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
   }
 
   inline GLuint CreateEBO(GLuint* indices, size_t arraySize, int BufferDraw = GL_STATIC_DRAW)
@@ -177,19 +176,19 @@ namespace Temp::Render::OpenGLWrapper
     return EBO;
   }
 
-  inline GLuint UpdateEBO(GLuint EBO,
-                          GLuint* indices,
-                          size_t arraySize,
-                          int BufferDraw = GL_STATIC_DRAW)
+  inline void UpdateEBO(GLuint EBO,
+                        GLuint* indices,
+                        size_t arraySize,
+                        int BufferDraw = GL_STATIC_DRAW)
   {
     if (arraySize == 0 || !indices)
     {
-      return EBO;
+      return;
     }
     GLint size = 0;
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-    if (size != (GLint)(sizeof(GLuint) * arraySize) || size == 0  || BufferDraw == GL_STATIC_DRAW)
+    if (size != (GLint)(sizeof(GLuint) * arraySize) || size == 0 || BufferDraw == GL_STATIC_DRAW)
     {
       glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * arraySize, indices, BufferDraw);
     }
@@ -197,8 +196,6 @@ namespace Temp::Render::OpenGLWrapper
     {
       glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, size, indices);
     }
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    return EBO;
   }
 
   inline GLuint CreateUBO(size_t bytes)
@@ -229,6 +226,16 @@ namespace Temp::Render::OpenGLWrapper
     glBindBuffer(GL_UNIFORM_BUFFER, UBO);
     glBufferSubData(GL_UNIFORM_BUFFER, offset, size, (void*)data);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
+  }
+
+  inline void DisableAllVertexAttribArrays()
+  {
+    GLint maxAttribs;
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxAttribs);
+    for (GLint i = 0; i < maxAttribs; ++i)
+    {
+      glDisableVertexAttribArray(i);
+    }
   }
 
   inline void SetVertexAttribArray(int arrayIndex, int numOfElements, int stride, int position)

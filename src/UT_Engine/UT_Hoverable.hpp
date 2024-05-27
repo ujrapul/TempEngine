@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "Array.hpp"
 #include "Camera.hpp"
 #include "Hoverable.hpp"
 #include "Scene.hpp"
@@ -30,7 +29,9 @@ namespace Temp::Component::Hoverable::UnitTests
   {
     Camera::SetProjection(Camera::Projection::ORTHOGRAPHIC);
 
+    Scene::SceneFns sceneFns;
     Scene::Data* scene = new Scene::Data();
+    scene->sceneFns = &sceneFns;
     Data hoverable{nullptr, HoverEnter, HoverLeave, nullptr, nullptr, -1000, -1000, 2000, 2000};
     Assert("Test Hoverable is Inside", Hoverable::IsInside(hoverable, 0, 0));
     Assert("Test Hoverable is not Inside", !Hoverable::IsInside(hoverable, -1000, -1000));

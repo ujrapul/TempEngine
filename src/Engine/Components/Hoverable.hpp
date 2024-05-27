@@ -45,37 +45,37 @@ namespace Temp::Component::Hoverable
     bool operator==(const Data& other) const = default;
   };
 
-  inline std::ostream& operator<<(
-    std::ostream& os,
-    const DynamicArray<Math::Vec3f, MemoryManager::Data::SCENE_ARENA>& triangle)
+  inline Stream& operator<<(
+    Stream& os,
+    std::same_as<DynamicArray<Math::Vec3f, MemoryManager::Data::SCENE_ARENA>> auto const& triangle)
   {
-    os << "{";
+    os << String("{");
     for (const auto& vertex : triangle)
     {
-      os << vertex << ",";
+      os << vertex << String(",");
     }
-    os << "}\n";
+    os << String("}\n");
     return os;
   }
 
-  inline std::ostream& operator<<(
-    std::ostream& os,
-    const DynamicArray<DynamicArray<Math::Vec3f, MemoryManager::Data::SCENE_ARENA>,
-                       MemoryManager::Data::SCENE_ARENA>& triangles)
+  inline Stream& operator<<(
+    Stream& os,
+    std::same_as<DynamicArray<DynamicArray<Math::Vec3f, MemoryManager::Data::SCENE_ARENA>,
+                       MemoryManager::Data::SCENE_ARENA>> auto const& triangles)
   {
-    os << "Triangles{";
+    os << String("Triangles{");
     for (const auto& triangle : triangles)
     {
-      os << triangle << ",";
+      os << triangle << String(",");
     }
-    os << "}\n";
+    os << String("}\n");
     return os;
   }
 
-  inline std::ostream& operator<<(std::ostream& os, const Data& hoverable)
+  inline Stream& operator<<(Stream& os, const Data& hoverable)
   {
-    os << "Hoverable(" << hoverable.Click << " " << hoverable.HoverEnter << " "
-       << hoverable.HoverLeave << " " << hoverable.Drag << " " << hoverable.callbackData << " "
+    os << String("Hoverable(") << (void*)hoverable.Click << " " << (void*)hoverable.HoverEnter << " "
+       << (void*)hoverable.HoverLeave << " " << (void*)hoverable.Drag << " " << hoverable.callbackData << " "
        << hoverable.x << " " << hoverable.y << " " << hoverable.width << " " << hoverable.y << " "
        << hoverable.width << " " << hoverable.height << " " << hoverable.scale << " "
        << hoverable.lastInside << " " << hoverable.isDrag << " " << hoverable.model << " "

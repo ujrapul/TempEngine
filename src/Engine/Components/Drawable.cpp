@@ -10,6 +10,7 @@
 #include "TextBox.hpp"
 
 #include "GameDrawable.hpp"
+#include "gl.h"
 
 namespace Temp::Component::Drawable
 {
@@ -28,6 +29,8 @@ namespace Temp::Component::Drawable
 
       assert(drawable.entity < Entity::MAX && "Drawable Entity::id not set!");
 
+      // Putting here for assurance that all buffers are unbound if attempting to modify existing VBOs and EBOs
+      OpenGLWrapper::UnbindBuffers();
       drawable.shaderProgram = OpenGLWrapper::GetShaderProgram(shaderIdx);
       if (OpenGLWrapper::globalFreeGLObjects.size > 0)
       {
@@ -55,6 +58,9 @@ namespace Temp::Component::Drawable
           drawable.VAO = glObject.VAO;
           drawable.VBO = glObject.VBO;
           drawable.EBO = glObject.EBO;
+          // Always make sure that the VBO and EBO are bound
+          // otherwise the vertex attrib array will not be set
+          glBindVertexArray(drawable.VAO);
           OpenGLWrapper::UpdateVBO(drawable.VBO,
                                   drawable.vertices.buffer,
                                   drawable.vertices.size,
@@ -65,7 +71,7 @@ namespace Temp::Component::Drawable
                                   drawable.indices.size,
                                   bufferDraw);
           OpenGLWrapper::globalFreeGLObjects[shaderIdx].Remove(glObject);
-          glBindVertexArray(drawable.VAO);
+          // The update functions may not bind the buffers due to either or both vertices and indices being empty
           glBindBuffer(GL_ARRAY_BUFFER, drawable.VBO);
           glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawable.EBO);
         }
@@ -82,6 +88,7 @@ namespace Temp::Component::Drawable
       }
       drawable.indicesSize = (int)drawable.indices.size;
       drawable.bufferDraw = bufferDraw;
+      OpenGLWrapper::DisableAllVertexAttribArrays();
       for (size_t i = 0; i < numOfElements.size; ++i)
       {
         OpenGLWrapper::SetVertexAttribArray(i,

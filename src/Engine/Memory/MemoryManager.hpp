@@ -7,8 +7,11 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <mutex>
 #include <utility>
+
+// #define MEMORY_TEST
 
 namespace Temp::MemoryManager
 {
@@ -27,6 +30,12 @@ namespace Temp::MemoryManager
     LinearAllocator::Data sceneArena{};
     LinearAllocator::Data tempArena{};
     LinearAllocator::Data threadTempArena{};
+#ifdef MEMORY_TEST
+    LinearAllocator::Data globalArenaTemp{};
+    LinearAllocator::Data sceneArenaTemp{};
+    LinearAllocator::Data tempArenaTemp{};
+    LinearAllocator::Data threadTempArenaTemp{};
+#endif    
     LinearAllocator::TempData tempData{};
     LinearAllocator::TempData threadTempData{};
     size_t tempDataSize{0};
@@ -53,6 +62,23 @@ namespace Temp::MemoryManager
       // Allocate 1073 mb of memory
       void* threadTempBuffer = malloc(tempLength);
       LinearAllocator::Init(threadTempArena, threadTempBuffer, tempLength);
+
+#ifdef MEMORY_TEST
+      // Allocate 134 mb of memory
+      void* sceneBufferTemp = calloc(length, 1);
+      LinearAllocator::Init(sceneArenaTemp, sceneBufferTemp, length);
+
+      void* globalBufferTemp = calloc(length, 1);
+      LinearAllocator::Init(globalArenaTemp, globalBufferTemp, length);
+
+      // Allocate 1073 mb of memory
+      void* tempBufferTemp = calloc(tempLength, 1);
+      LinearAllocator::Init(tempArenaTemp, tempBufferTemp, tempLength);
+
+      // Allocate 1073 mb of memory
+      void* threadTempBufferTemp = calloc(tempLength, 1);
+      LinearAllocator::Init(threadTempArenaTemp, threadTempBufferTemp, tempLength);
+#endif
     }
 
     ~Data()
@@ -72,11 +98,31 @@ namespace Temp::MemoryManager
           // ++sceneDataSize;
           // Logger::LogErr(std::to_string(sceneDataSize));
           // Logger::LogErr("Scene Memory Usage in MB: " + std::to_string(sceneArena.offset / 1000000.f));
+#ifdef MEMORY_TEST
+          if (sceneArena.offset > 0)
+          {
+            memcpy(sceneArenaTemp.buffer, sceneArena.buffer, sceneArena.offset);
+            auto output = LinearAllocator::Alloc(sceneArena, size);
+            assert(memcmp(sceneArenaTemp.buffer, sceneArena.buffer, sceneArenaTemp.offset) == 0);
+            return output;
+          }
+#endif
           return LinearAllocator::Alloc(sceneArena, size);
         }
         case GLOBAL_ARENA:
+        {
           // Logger::LogErr("Global Memory Usage in MB: " + std::to_string(globalArena.offset / 1000000.f));
+#ifdef MEMORY_TEST
+          if (globalArena.offset > 0)
+          {
+            memcpy(globalArenaTemp.buffer, globalArena.buffer, globalArena.offset);
+            auto output = LinearAllocator::Alloc(globalArena, size);
+            assert(memcmp(globalArenaTemp.buffer, globalArena.buffer, globalArenaTemp.offset) == 0);
+            return output;
+          }
+#endif
           return LinearAllocator::Alloc(globalArena, size);
+        }
         case TEMP:
           // Logger::LogErr("Begin Temp Memory Usage in MB: " + std::to_string(tempArena.offset / 1000000.f));
           if (tempDataSize == 0)
@@ -84,6 +130,15 @@ namespace Temp::MemoryManager
             tempData = LinearAllocator::TempMemoryBegin(tempArena);
           }
           ++tempDataSize;
+#ifdef MEMORY_TEST
+          if (globalArena.offset > 0)
+          {
+            memcpy(tempArenaTemp.buffer, tempArena.buffer, tempArena.offset);
+            auto output = LinearAllocator::Alloc(tempArena, size);
+            assert(memcmp(tempArenaTemp.buffer, tempArena.buffer, tempArenaTemp.offset) == 0);
+            return output;
+          }
+#endif
           return LinearAllocator::Alloc(tempArena, size);
         case THREAD_TEMP:
         {
